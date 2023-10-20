@@ -77,7 +77,7 @@ func GenerateSQLTable(tableName string, structInterface interface{}) string {
 		}
 		columns = append(columns, fmt.Sprintf("%s %s", column, fieldType))
 	}
-	return fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", tableName, strings.Join(columns, ", "))
+	return fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\"(%s);", tableName, strings.Join(columns, ","))
 }
 
 func IsUserInitialized(db *sql.DB, ut string) bool {

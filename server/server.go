@@ -71,7 +71,7 @@ func handleLogin(a *fiber.App, db *sql.DB) error {
 				"error": err.Error(),
 			})
 		}
-		query1 := models.GenerateSQLTable("user", structFormData)
+		query1 := models.GenerateSQLTable("users", structFormData)
 		result, err := db.Exec(query1)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
