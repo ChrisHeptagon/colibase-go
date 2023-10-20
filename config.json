@@ -1,0 +1,18 @@
+{
+    "User": {
+        "fields": [
+            {
+                "name": "Email",
+                "type": "string"
+            },
+            {
+                "name": "Username",
+                "type": "string"
+            },
+            {
+                "name": "Password",
+                "type": "string"
+            }
+        ]
+    }
+}
