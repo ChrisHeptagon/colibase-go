@@ -1,5 +1,5 @@
 import { createSignal, onMount } from 'solid-js';
-import './styles/LoginPage.css'
+import './styles/LoginPage.scss'
 
 interface Field {
   name: string;
@@ -18,7 +18,7 @@ interface User {
 
 
 const LoginPage = () => {
-  const [userSchema, setUserSchema] = createSignal<UserSchema | null>(null);
+  const [userSchema, setUserSchema] = createSignal<UserSchema>();
   interface FormData {
     [key: string]: string;
   }
@@ -40,7 +40,6 @@ const LoginPage = () => {
       console.error('Error fetching schema:', error);
     });
   });
-
   const handleChange = (e: any) => {
     const { name, value } = e.target;
     formData = ({
@@ -80,7 +79,7 @@ const LoginPage = () => {
                     <h1>Login</h1>
                     {userSchema() && (
                         <div>
-                            {userSchema()?.User.fields.map((field) => (
+                            {userSchema()?.User.fields.map((field: Field) => (
                                 <div>
                                   {field.name !== 'password' && field.name !== 'Password' && (
                                     <input

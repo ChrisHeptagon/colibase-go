@@ -8,9 +8,12 @@ import (
 
 func main() {
 	utils.HandleEnvVars()
-	db, err := db.InitDB()
+	Db, err := db.InitDB()
 	if err != nil {
 		panic(err)
 	}
-	server.MainServer(db)
+	defer Db.Close()
+
+	server.MainServer(Db)
+
 }

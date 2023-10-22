@@ -3,25 +3,31 @@ package server
 import (
 	"database/sql"
 	"fmt"
-	"os"
 
 	"github.com/ChrisHeptagon/colibase/models"
 	"github.com/ChrisHeptagon/colibase/utils"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
 )
 
 func MainServer(db *sql.DB) {
 	app := fiber.New()
+	app.Use(compress.New())
 	app.Static("/assets", "./admin-ui/dist/assets")
 	loginSchema(app)
-	handleUserInitializatonStatus(app, db, os.Getenv("USER_TABLE_NAME"))
-	handleLogin(app, db)
-	app.Static("/admin-ui/*", "./admin-ui/dist")
+	handleUserInitializatonStatus(app, db, "users")
+	handleUserInitializaton(app, db)
+	handleUserLogin(app, db)
+	app.Static("/admin-ui/*", "./admin-ui/dist/index.html")
 	app.Listen(":6700")
 }
 
-func handleLogin(a *fiber.App, db *sql.DB) error {
-	a.Post("/api/login", func(c *fiber.Ctx) error {
+func handleUserLogin(a *fiber.App, db *sql.DB) error {
+	return nil
+}
+
+func handleUserInitializaton(a *fiber.App, db *sql.DB) error {
+	a.Post("/api/init-login", func(c *fiber.Ctx) error {
 		var userSchema models.UserSchema
 		var formData map[string]interface{}
 		err := models.GenerateSchema("./config.json", &userSchema)
@@ -71,22 +77,42 @@ func handleLogin(a *fiber.App, db *sql.DB) error {
 				"error": err.Error(),
 			})
 		}
-		query1 := models.GenerateSQLTable("users", structFormData)
+		query1 := models.GeneratePostgreSQLTable("users", structFormData)
 		result, err := db.Exec(query1)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": err.Error(),
 			})
 		}
-		fmt.Println("result:", result)
-		return c.SendStatus(fiber.StatusOK)
+		r1, err := result.RowsAffected()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		fmt.Println("rows affected:", r1)
+		result, err = db.Exec(models.InsertDataFromStruct("users", structFormData))
+		fmt.Println("query dos:", models.InsertDataFromStruct("users", structFormData))
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		r2, err := result.RowsAffected()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		fmt.Println("rows affected:", r2)
+		return c.SendString(fmt.Sprintf("rows affected: %d", r2+r1))
 	})
 	return nil
 }
 
 func handleUserInitializatonStatus(a *fiber.App, db *sql.DB, tn string) error {
 	a.Get("/api/user-initialization-status", func(c *fiber.Ctx) error {
-		if models.IsUserInitialized(db, tn) {
+		if models.IsUserInitialized(db) {
 			return c.SendStatus(fiber.StatusOK)
 		} else {
 			return c.SendStatus(fiber.StatusInternalServerError)

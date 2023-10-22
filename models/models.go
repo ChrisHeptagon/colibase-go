@@ -9,18 +9,18 @@ import (
 	"strings"
 )
 
+type Fields []struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
 type UserSchema struct {
 	User struct {
-		Fields []struct {
-			Name string `json:"name"`
-			Type string `json:"type"`
-		} `json:"fields"`
+		Fields Fields `json:"fields"`
 	} `json:"User"`
 }
 
-type SchemaInterface interface{}
-
-func GenerateSchema(configPath string, schema SchemaInterface) error {
+func GenerateSchema(configPath string, schema interface{}) error {
 	configJSON, err := os.ReadFile(configPath)
 	if err != nil {
 		return err
@@ -54,34 +54,59 @@ func MapToStruct(mapping map[string]interface{}) (interface{}, error) {
 	return structValue.Interface(), nil
 }
 
-func GenerateSQLTable(tableName string, structInterface interface{}) string {
+func GeneratePostgreSQLTable(tableName string, structInterface interface{}) string {
 	var columns []string
+	switch tableName {
+	case "users", "Users":
+		columns = append(columns, "id SERIAL PRIMARY KEY")
+	}
 	typeOf := reflect.TypeOf(structInterface)
 	for i := 0; i < typeOf.NumField(); i++ {
 		field := typeOf.Field(i)
-		column := field.Tag.Get("db")
-
-		if column == "" {
-			column = strings.ToLower(field.Name)
-		}
+		column := field.Name
 		fieldType := ""
-		switch field.Type.Kind() {
-		case reflect.String:
-			fieldType = "TEXT"
-		case reflect.Int:
-			fieldType = "INT"
-		case reflect.Bool:
-			fieldType = "BOOLEAN"
+		switch column {
+		case "Password", "password":
+			fieldType = "VARCHAR(255) NOT NULL"
+		case "Email", "email":
+			fieldType = "VARCHAR(255) NOT NULL UNIQUE"
+		case "Username", "username":
+			fieldType = "VARCHAR(255) NOT NULL UNIQUE"
 		default:
-			fieldType = "TEXT"
+			switch field.Type.Kind() {
+			case reflect.String:
+				fieldType = "TEXT"
+			case reflect.Int:
+				fieldType = "INT"
+			case reflect.Bool:
+				fieldType = "BOOLEAN"
+			default:
+				fieldType = "TEXT"
+			}
 		}
 		columns = append(columns, fmt.Sprintf("%s %s", column, fieldType))
 	}
+	fmt.Printf("query: CREATE TABLE IF NOT EXISTS \"%s\"(%s);\n", tableName, strings.Join(columns, ","))
 	return fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\"(%s);", tableName, strings.Join(columns, ","))
 }
 
-func IsUserInitialized(db *sql.DB, ut string) bool {
-	result, err := db.Exec("SELECT * FROM %s", ut)
+func InsertDataFromStruct(tableName string, structInterface interface{}) string {
+	var columns []string
+	var values []string
+	typeOf := reflect.TypeOf(structInterface)
+	for i := 0; i < typeOf.NumField(); i++ {
+		field := typeOf.Field(i)
+		column := field.Name
+		columns = append(columns, column)
+		value := reflect.ValueOf(structInterface).FieldByName(column)
+		values = append(values, fmt.Sprintf("'%v'", value))
+	}
+	fmt.Printf("query: INSERT INTO \"%s\"(%s) VALUES( %s );\n", tableName, strings.Join(columns, ","), strings.Join(values, ","))
+	return fmt.Sprintf("INSERT INTO \"%s\"(%s) VALUES( %s );", tableName, strings.Join(columns, ","), strings.Join(values, ","))
+}
+
+func IsUserInitialized(db *sql.DB) bool {
+	result, err := db.Exec("SELECT * FROM users;")
 	if err != nil {
 		return false
 	}
