@@ -58,7 +58,7 @@ func GeneratePostgreSQLTable(tableName string, structInterface interface{}) stri
 	var columns []string
 	switch tableName {
 	case "users", "Users":
-		columns = append(columns, "id SERIAL PRIMARY KEY")
+		columns = append(columns, "id INTEGER PRIMARY KEY AUTOINCREMENT")
 	}
 	typeOf := reflect.TypeOf(structInterface)
 	for i := 0; i < typeOf.NumField(); i++ {
@@ -103,6 +103,21 @@ func InsertDataFromStruct(tableName string, structInterface interface{}) string 
 	}
 	fmt.Printf("query: INSERT INTO \"%s\"(%s) VALUES( %s );\n", tableName, strings.Join(columns, ","), strings.Join(values, ","))
 	return fmt.Sprintf("INSERT INTO \"%s\"(%s) VALUES( %s );", tableName, strings.Join(columns, ","), strings.Join(values, ","))
+}
+
+func QueryAdminUserFromDB(ut string, userStruct interface{}) string {
+	var columns []string
+	var values []string
+	typeOf := reflect.TypeOf(userStruct)
+	for i := 0; i < typeOf.NumField(); i++ {
+		field := typeOf.Field(i)
+		column := field.Name
+		columns = append(columns, column)
+		value := reflect.ValueOf(userStruct).FieldByName(column)
+		values = append(values, fmt.Sprintf("'%v'", value))
+	}
+	fmt.Printf("query: SELECT %s FROM %s; \n", strings.Join(columns, ", "), ut)
+	return fmt.Sprintf("SELECT %s FROM %s;", strings.Join(columns, ", "), ut)
 }
 
 func IsUserInitialized(db *sql.DB) bool {

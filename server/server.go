@@ -23,6 +23,87 @@ func MainServer(db *sql.DB) {
 }
 
 func handleUserLogin(a *fiber.App, db *sql.DB) error {
+	a.Post("/api/login", func(c *fiber.Ctx) error {
+		var userSchema models.UserSchema
+		var formData map[string]interface{}
+		err := models.GenerateSchema("./config.json", &userSchema)
+		if err := c.BodyParser(&formData); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		for _, field := range userSchema.User.Fields {
+			value, exists := formData[field.Name]
+			if exists && field.Name == "Password" || field.Name == "password" {
+				hashedPassword, err := utils.HashPassword(value.(string))
+				if err != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+						"error": err.Error(),
+					})
+				}
+				fmt.Printf("%s: %s\n", field.Name, hashedPassword)
+				formData[field.Name] = hashedPassword
+			} else if exists && field.Name != "Password" {
+				fmt.Printf("%s: %s\n", field.Name, value)
+			} else {
+				formData[field.Name] = "[Not Provided]"
+				fmt.Printf("%s: [Not Provided]\n", field.Name)
+			}
+		}
+		fmt.Printf("Modified formData: %v\n", formData)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		structFormData, err := models.MapToStruct(formData)
+		fmt.Println("converted formData to struct:", structFormData)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		query1 := models.QueryAdminUserFromDB("users", structFormData)
+		fmt.Println("query uno:", query1)
+		result, err := db.Query(query1)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		for result.Next() {
+			column, err := result.Columns()
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": err.Error(),
+				})
+			}
+
+			for i := range column {
+				columnInterface := make([]interface{}, len(column))
+				columnInterface[i] = &column[i]
+				if err != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+						"error": err.Error(),
+					})
+				}
+
+				fmt.Println(column[i], ":", value)
+
+			}
+		}
+		return c.SendString("ok")
+	})
 	return nil
 }
 

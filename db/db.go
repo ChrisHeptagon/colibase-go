@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"os"
 
-	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func InitDB() (*sql.DB, error) {
 
-	db, err := sql.Open("postgres", fmt.Sprintf("user=%s password=%s dbname=%s port=%s sslmode=disable", os.Getenv("DB_USER"), os.Getenv("DB_PASS"), os.Getenv("DB_NAME"), "5447"))
+	db, err := sql.Open("sqlite3", "./"+os.Getenv("DB_NAME")+".db")
+
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	defer db.Close()
 	db.Exec(fmt.Sprintf("CREATE DATABASE %s;", os.Getenv("DB_NAME")))
 
 	return db, nil
