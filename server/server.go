@@ -3,6 +3,7 @@ package server
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 
 	"github.com/ChrisHeptagon/colibase/models"
 	"github.com/ChrisHeptagon/colibase/utils"
@@ -40,14 +41,7 @@ func handleUserLogin(a *fiber.App, db *sql.DB) error {
 		for _, field := range userSchema.User.Fields {
 			value, exists := formData[field.Name]
 			if exists && field.Name == "Password" || field.Name == "password" {
-				hashedPassword, err := utils.HashPassword(value.(string))
-				if err != nil {
-					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-						"error": err.Error(),
-					})
-				}
-				fmt.Printf("%s: %s\n", field.Name, hashedPassword)
-				formData[field.Name] = hashedPassword
+				formData[field.Name] = value.(string)
 			} else if exists && field.Name != "Password" {
 				fmt.Printf("%s: %s\n", field.Name, value)
 			} else {
@@ -73,16 +67,20 @@ func handleUserLogin(a *fiber.App, db *sql.DB) error {
 				"error": err.Error(),
 			})
 		}
-		query1 := models.QueryAdminUserFromDB("users", structFormData)
+		query1 := models.QueryAdminUserDB("users", structFormData)
 		fmt.Println("query uno:", query1)
-		result, err := db.Query(query1)
+		rows, err := db.Query(query1)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": err.Error(),
 			})
 		}
-		for result.Next() {
-			column, err := result.Columns()
+		userDeets := make(map[string]interface{})
+
+		defer rows.Close()
+		column, err := rows.Columns()
+		columnsInterface := make([]interface{}, len(column))
+		for rows.Next() {
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 					"error": err.Error(),
@@ -90,20 +88,58 @@ func handleUserLogin(a *fiber.App, db *sql.DB) error {
 			}
 
 			for i := range column {
-				columnInterface := make([]interface{}, len(column))
-				columnInterface[i] = &column[i]
-				if err != nil {
-					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-						"error": err.Error(),
-					})
-				}
-
-				fmt.Println(column[i], ":", value)
-
+				columnsInterface[i] = &columnsInterface[i]
+			}
+			err = rows.Scan(columnsInterface...)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": err.Error(),
+				})
+			}
+			for i := range column {
+				userDeets[column[i]] = columnsInterface[i]
 			}
 		}
-		return c.SendString("ok")
+		if len(userDeets) == 0 {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "invalid credentials",
+			})
+		}
+		for key, value := range userDeets {
+			fmt.Printf("%s: %v\n", key, value)
+			switch key {
+			case regexp.MustCompile(`(?i)password`).FindString(key):
+				if utils.CheckPassword(formData[key].(string), value.(string)) != nil {
+					return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+						"error": "invalid credentials",
+					})
+				} else if utils.CheckPassword(formData[key].(string), value.(string)) == nil {
+					continue
+				} else {
+					return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+						"error": "invalid credentials",
+					})
+				}
+			case "ID", "id":
+				continue
+			default:
+				if value != formData[key] {
+					return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+						"error": "invalid credentials",
+					})
+				}
+			}
+
+		}
+		fmt.Println("userDeets:", userDeets)
+		return c.JSON(
+			fiber.Map{
+				"message": "Login Successful",
+				"status":  fiber.StatusOK,
+			},
+		)
 	})
+
 	return nil
 }
 

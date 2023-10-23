@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 )
 
@@ -105,19 +106,31 @@ func InsertDataFromStruct(tableName string, structInterface interface{}) string 
 	return fmt.Sprintf("INSERT INTO \"%s\"(%s) VALUES( %s );", tableName, strings.Join(columns, ","), strings.Join(values, ","))
 }
 
-func QueryAdminUserFromDB(ut string, userStruct interface{}) string {
+func QueryAdminUserDB(ut string, userStruct interface{}) string {
 	var columns []string
 	var values []string
+	var combinedStuff string
 	typeOf := reflect.TypeOf(userStruct)
 	for i := 0; i < typeOf.NumField(); i++ {
 		field := typeOf.Field(i)
 		column := field.Name
+		switch column {
+		case regexp.MustCompile(`(?i)password`).FindString(column):
+			continue
+		}
 		columns = append(columns, column)
 		value := reflect.ValueOf(userStruct).FieldByName(column)
 		values = append(values, fmt.Sprintf("'%v'", value))
 	}
-	fmt.Printf("query: SELECT %s FROM %s; \n", strings.Join(columns, ", "), ut)
-	return fmt.Sprintf("SELECT %s FROM %s;", strings.Join(columns, ", "), ut)
+	for i := 0; i < len(columns); i++ {
+		combinedStuff += fmt.Sprintf("%s = %s", columns[i], values[i])
+		if i != len(columns)-1 {
+			combinedStuff += " AND "
+		}
+	}
+	fmt.Printf("query: SELECT * FROM %s WHERE %s;\n ", ut, combinedStuff)
+
+	return fmt.Sprintf("SELECT * FROM %s WHERE %s;\n ", ut, combinedStuff)
 }
 
 func IsUserInitialized(db *sql.DB) bool {
