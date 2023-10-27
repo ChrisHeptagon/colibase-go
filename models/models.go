@@ -55,7 +55,7 @@ func MapToStruct(mapping map[string]interface{}) (interface{}, error) {
 	return structValue.Interface(), nil
 }
 
-func GeneratePostgreSQLTable(tableName string, structInterface interface{}) string {
+func GenerateAdminTable(db *sql.DB, tableName string, structInterface interface{}) error {
 	var columns []string
 	switch tableName {
 	case "users", "Users":
@@ -70,7 +70,7 @@ func GeneratePostgreSQLTable(tableName string, structInterface interface{}) stri
 		case "Password", "password":
 			fieldType = "VARCHAR(255) NOT NULL"
 		case "Email", "email":
-			fieldType = "VARCHAR(255) NOT NULL UNIQUE"
+			fieldType = fmt.Sprintf("VARCHAR(255) NOT NULL UNIQUE CHECK(%s LIKE '%%@%%.%%')", column)
 		case "Username", "username":
 			fieldType = "VARCHAR(255) NOT NULL UNIQUE"
 		default:
@@ -87,29 +87,54 @@ func GeneratePostgreSQLTable(tableName string, structInterface interface{}) stri
 		}
 		columns = append(columns, fmt.Sprintf("%s %s", column, fieldType))
 	}
-	fmt.Printf("query: CREATE TABLE IF NOT EXISTS \"%s\"(%s);\n", tableName, strings.Join(columns, ","))
-	return fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\"(%s);", tableName, strings.Join(columns, ","))
+	formattedColumns := strings.Join(columns, ", ")
+	query := fmt.Sprintf(" CREATE TABLE IF NOT EXISTS \"%s\" (%s);", tableName, formattedColumns)
+	fmt.Println(query)
+	_, err := db.Exec(query)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func InsertDataFromStruct(tableName string, structInterface interface{}) string {
+func InsertDataFromStruct(db *sql.DB, tableName string, structInterface interface{}) error {
 	var columns []string
 	var values []string
+	var valuesInterface []interface{}
 	typeOf := reflect.TypeOf(structInterface)
 	for i := 0; i < typeOf.NumField(); i++ {
 		field := typeOf.Field(i)
 		column := field.Name
 		columns = append(columns, column)
-		value := reflect.ValueOf(structInterface).FieldByName(column)
-		values = append(values, fmt.Sprintf("'%v'", value))
+		value := reflect.ValueOf(structInterface).FieldByName(column).Interface()
+		values = append(values, value.(string))
 	}
-	fmt.Printf("query: INSERT INTO \"%s\"(%s) VALUES( %s );\n", tableName, strings.Join(columns, ","), strings.Join(values, ","))
-	return fmt.Sprintf("INSERT INTO \"%s\"(%s) VALUES( %s );", tableName, strings.Join(columns, ","), strings.Join(values, ","))
+	for _, value := range values {
+		valuesInterface = append(valuesInterface, value)
+	}
+	blankedValues := make([]string, len(values))
+	for i := 0; i < len(values); i++ {
+		blankedValues[i] = "?"
+	}
+	fmt.Printf("INSERT INTO \"%s\"(%s) VALUES( %s );", tableName, strings.Join(columns, ", "), strings.Join(blankedValues, ","))
+	query := fmt.Sprintf("INSERT INTO \"%s\"(%s) VALUES( %s );", tableName, strings.Join(columns, ", "), strings.Join(blankedValues, ","))
+	stmt, err := db.Prepare(query)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	fmt.Println("VALUES: ", valuesInterface)
+	_, err = stmt.Exec(valuesInterface...)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func QueryAdminUserDB(ut string, userStruct interface{}) string {
+func QueryAdminUserDB(db *sql.DB, ut string, userStruct interface{}) (*sql.Rows, error) {
 	var columns []string
-	var values []string
 	var combinedStuff string
+	var values []interface{}
 	typeOf := reflect.TypeOf(userStruct)
 	for i := 0; i < typeOf.NumField(); i++ {
 		field := typeOf.Field(i)
@@ -119,34 +144,43 @@ func QueryAdminUserDB(ut string, userStruct interface{}) string {
 			continue
 		}
 		columns = append(columns, column)
-		value := reflect.ValueOf(userStruct).FieldByName(column)
-		values = append(values, fmt.Sprintf("'%v'", value))
+		values = append(values, reflect.ValueOf(userStruct).FieldByName(column).Interface())
 	}
 	for i := 0; i < len(columns); i++ {
-		combinedStuff += fmt.Sprintf("%s = %s", columns[i], values[i])
+		combinedStuff += fmt.Sprintf("%s = ?", columns[i])
 		if i != len(columns)-1 {
 			combinedStuff += " AND "
 		}
 	}
-	fmt.Printf("query: SELECT * FROM %s WHERE %s;\n ", ut, combinedStuff)
-
-	return fmt.Sprintf("SELECT * FROM %s WHERE %s;\n ", ut, combinedStuff)
+	query := fmt.Sprintf("SELECT * FROM %s WHERE %s;\n ", ut, combinedStuff)
+	fmt.Print(query)
+	stmt, err := db.Prepare(query)
+	if err != nil {
+		return &sql.Rows{}, err
+	}
+	defer stmt.Close()
+	result, err := stmt.Query(values...)
+	if err != nil {
+		return &sql.Rows{}, err
+	}
+	return result, nil
 }
 
 func IsUserInitialized(db *sql.DB) bool {
-	result, err := db.Exec("SELECT * FROM users;")
+	rows, err := db.Query("SELECT * FROM users;")
 	if err != nil {
 		return false
 	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return false
-	}
-	if rowsAffected > 0 {
-		return true
-	}
-	if rowsAffected == 0 {
-		return false
+	defer rows.Close()
+	for rows.Next() {
+		switch err := rows.Err(); err {
+		case sql.ErrNoRows:
+			return false
+		case nil:
+			return true
+		default:
+			return true
+		}
 	}
 	return false
 }

@@ -61,13 +61,6 @@ func MainServer(db *sql.DB) {
 }
 
 func AuthMiddleware(c *fiber.Ctx, st *session.Store) error {
-	session, err := st.Get(c)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-	name := session.Get("name")
 	cookie := c.Cookies("colibase")
 	if cookie == "" {
 		return c.Redirect("/admin-entry/login")
@@ -94,13 +87,10 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB) error {
 		if exists && field.Name == "Password" || field.Name == "password" {
 			formData[field.Name] = value.(string)
 		} else if exists && field.Name != "Password" {
-			fmt.Printf("%s: %s\n", field.Name, value)
 		} else {
-			formData[field.Name] = "[Not Provided]"
-			fmt.Printf("%s: [Not Provided]\n", field.Name)
+			formData[field.Name] = ""
 		}
 	}
-	fmt.Printf("Modified formData: %v\n", formData)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
@@ -112,15 +102,12 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB) error {
 		})
 	}
 	structFormData, err := models.MapToStruct(formData)
-	fmt.Println("converted formData to struct:", structFormData)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
-	query1 := models.QueryAdminUserDB("users", structFormData)
-	fmt.Println("query uno:", query1)
-	rows, err := db.Query(query1)
+	rows, err := models.QueryAdminUserDB(db, "users", structFormData)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
@@ -157,7 +144,6 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB) error {
 		})
 	}
 	for key, value := range userDeets {
-		fmt.Printf("%s: %v\n", key, value)
 		switch key {
 		case regexp.MustCompile(`(?i)password`).FindString(key):
 			if utils.CheckPassword(formData[key].(string), value.(string)) != nil {
@@ -182,9 +168,7 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB) error {
 		}
 
 	}
-	fmt.Println("userDeets:", userDeets)
 	for key, value := range userDeets {
-		fmt.Printf("%s: %v\n", key, value)
 		switch key {
 		case regexp.MustCompile(`(?i)email`).FindString(key):
 			c.Cookie(&fiber.Cookie{
@@ -224,23 +208,26 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 	}
 	for _, field := range userSchema.User.Fields {
 		value, exists := formData[field.Name]
-		if exists && field.Name == "Password" || field.Name == "password" {
-			hashedPassword, err := utils.HashPassword(value.(string))
-			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error": err.Error(),
-				})
+		switch exists {
+		case true:
+			switch field.Name {
+			case "Password", "password":
+				hashedPassword, err := utils.HashPassword(value.(string))
+				if err != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+						"error": err.Error(),
+					})
+				}
+				formData[field.Name] = hashedPassword
+			default:
+				formData[field.Name] = value.(string)
 			}
-			fmt.Printf("%s: %s\n", field.Name, hashedPassword)
-			formData[field.Name] = hashedPassword
-		} else if exists && field.Name != "Password" {
-			fmt.Printf("%s: %s\n", field.Name, value)
-		} else {
-			formData[field.Name] = "[Not Provided]"
-			fmt.Printf("%s: [Not Provided]\n", field.Name)
+		case false:
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": fmt.Sprintf("%s not provided", field.Name),
+			})
 		}
 	}
-	fmt.Printf("Modified formData: %v\n", formData)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
@@ -252,41 +239,35 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 		})
 	}
 	structFormData, err := models.MapToStruct(formData)
-	fmt.Println("converted formData to struct:", structFormData)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
-	query1 := models.GeneratePostgreSQLTable("users", structFormData)
-	result, err := db.Exec(query1)
+	err = models.GenerateAdminTable(db, "users", structFormData)
+
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
-	r1, err := result.RowsAffected()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
-	fmt.Println("rows affected:", r1)
-	result, err = db.Exec(models.InsertDataFromStruct("users", structFormData))
-	fmt.Println("query dos:", models.InsertDataFromStruct("users", structFormData))
+	err = models.InsertDataFromStruct(db, "users", structFormData)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
-	r2, err := result.RowsAffected()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
-	fmt.Println("rows affected:", r2)
-	return c.SendString(fmt.Sprintf("rows affected: %d", r2+r1))
+	return c.SendString("User Initialization Successful")
 }
 
 func handleUserInitializatonStatus(c *fiber.Ctx, db *sql.DB, tn string) error {

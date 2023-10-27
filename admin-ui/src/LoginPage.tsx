@@ -1,4 +1,4 @@
-import { createSignal, onMount } from 'solid-js';
+import { useState, useEffect } from 'react';
 import './styles/LoginPage.scss'
 
 interface Field {
@@ -18,14 +18,14 @@ interface User {
 
 
 const LoginPage = () => {
-  const [userSchema, setUserSchema] = createSignal<UserSchema>();
+  const [userSchema, setUserSchema] = useState<UserSchema>();
   interface FormData {
     [key: string]: string;
   }
-  let formData: FormData = {};
+  const [formData, setFormData] = useState<FormData>({} as FormData);
   
 
-  onMount(() => {
+  useEffect(() => {
     fetch('/api/login-schema')
     .then((res) => {
       if (!res.ok) {
@@ -39,18 +39,29 @@ const LoginPage = () => {
     .catch((error) => {
       console.error('Error fetching schema:', error);
     });
-  });
-  const handleChange = (e: any) => {
+    fetch('/api/user-initialization-status')
+    .then((res) => {
+      if (res.status === 500) {
+        window.location.href = '/admin-entry/init';
+        return JSON.stringify({status: "User not initialized"});
+      }
+      if (res.status === 200) {
+        return JSON.stringify({status: "User initialized"});
+      }
+    }
+    )
+  }, []);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    formData = ({
+    setFormData ({
       ...formData,
       [name]: value,
     });
   };
-  const handleSubmit = async (e: any) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const temp = async () => {
     e.preventDefault();
     try {
-      // Send a POST request with formData to your server
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
@@ -60,39 +71,44 @@ const LoginPage = () => {
       });
 
       if (response.status === 200) {
-        // Redirect or perform actions for a successful login
+        window.location.href = '/admin-ui/dashboard';
       } else {
-        // Handle login failure
         console.error('Login failed');
       }
     } catch (error) {
       console.error('Error:', error);
     }
+  }
+  temp();
   };
 
   return (
     <>
     <title>Colibase - Login Page</title>
-<div class='background'>
-            <div class='login-form'>
-                <form onSubmit={handleSubmit} class='login-form'>
+<div className='background'>
+            <div className='login-form'>
+                <form onSubmit={handleSubmit} className='login-form'>
                     <h1>Login</h1>
-                    {userSchema() && (
+                    {userSchema && (
                         <div>
-                            {userSchema()?.User.fields.map((field: Field) => (
+                            {userSchema.User.fields.map((field: Field) => (
                                 <div>
-                                  {field.name !== 'password' && field.name !== 'Password' && (
-                                    <input
-                                        name={field.name}
-                                        id={field.name}
-                                        type='text'
-                                        placeholder={field.name}
-                                        value={formData[field.name] || ''}
-                                        onChange={handleChange}
-                                    />
-                                  )}
                                   {
-                                    field.name === 'password' || field.name === 'Password' && (
+                                    RegExp ('email', 'i').test(field.name) && (
+                                      <input
+                                          name={field.name}
+                                          id={field.name}
+                                          placeholder={field.name}
+                                          type='email'
+                                          value={formData[field.name] || ''}
+                                          onChange={handleChange}
+                                          required
+                                          aria-required
+                                      />
+                                    )
+                                  }
+                                  {
+                                    RegExp ('password', 'i').test(field.name) && (
                                       <input
                                           name={field.name}
                                           id={field.name}
@@ -100,6 +116,22 @@ const LoginPage = () => {
                                           type='password'
                                           value={formData[field.name] || ''}
                                           onChange={handleChange}
+                                          required
+                                          aria-required
+                                      />
+                                    )
+                                  }
+                                  {
+                                    !RegExp ('email', 'i').test(field.name) && !RegExp ('password', 'i').test(field.name) && (
+                                      <input
+                                          name={field.name}
+                                          id={field.name}
+                                          type='text'
+                                          placeholder={field.name}
+                                          value={formData[field.name] || ''}
+                                          onChange={handleChange}
+                                          required
+                                          aria-required
                                       />
                                     )
                                   }
