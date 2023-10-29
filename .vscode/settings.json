@@ -1,5 +1,6 @@
 {
     "cSpell.words": [
         "Colibase"
-    ]
+    ],
+    "sqltools.useNodeRuntime": true
 }

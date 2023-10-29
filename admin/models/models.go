@@ -2,37 +2,16 @@ package models
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"regexp"
 	"strings"
 )
 
-type Fields []struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-}
-
-type UserSchema struct {
-	User struct {
-		Fields Fields `json:"fields"`
-	} `json:"User"`
-}
-
-func GenerateSchema(configPath string, schema interface{}) error {
-	configJSON, err := os.ReadFile(configPath)
-	if err != nil {
-		return err
-	}
-
-	// Unmarshal JSON into the provided schema
-	if err := json.Unmarshal(configJSON, schema); err != nil {
-		return err
-	}
-
-	return nil
+type DefaultUserSchema struct {
+	Email    string `form_type:"email"`
+	Username string `form_type:"text"`
+	Password string `form_type:"password"`
 }
 
 func MapToStruct(mapping map[string]interface{}) (interface{}, error) {

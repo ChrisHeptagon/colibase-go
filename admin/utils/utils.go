@@ -2,7 +2,6 @@ package utils
 
 import (
 	"os"
-	"regexp"
 
 	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
@@ -18,11 +17,6 @@ func HashPassword(password string) (string, error) {
 
 func CheckPassword(password string, hashedPassword string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-}
-
-func VaildEmail(email string) bool {
-	emailRegex := `^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$`
-	return regexp.MustCompile(emailRegex).MatchString(email)
 }
 
 func HandleEnvVars() error {

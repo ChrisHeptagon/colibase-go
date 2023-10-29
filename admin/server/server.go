@@ -3,27 +3,43 @@ package server
 import (
 	"database/sql"
 	"fmt"
+	"reflect"
 	"regexp"
 	"time"
+
+	"encoding/base64"
 
 	"github.com/ChrisHeptagon/colibase/admin/models"
 	"github.com/ChrisHeptagon/colibase/admin/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
-	"github.com/gofiber/fiber/v2/middleware/encryptcookie"
+	"github.com/gofiber/fiber/v2/middleware/favicon"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/gofiber/storage/sqlite3/v2"
+	"github.com/gofiber/template/html/v2"
 )
 
 func MainServer(db *sql.DB) {
-	app := fiber.New()
-	store := session.New()
+	app := fiber.New(fiber.Config{
+		Views: html.New("./admin-ui/dist", ".html"),
+	})
+	storageDB := sqlite3.New(sqlite3.Config{
+		Database: "./sessions.db",
+		Table:    "sessions",
+	})
+	store := session.New(
+		session.Config{
+			Expiration: 24 * 7 * time.Hour,
+			Storage:    storageDB,
+			KeyLookup:  "cookie:colibase",
+		})
 	app.Use(compress.New())
-	app.Use(encryptcookie.New(encryptcookie.Config{
-		Key: "BoF3aT8EEFv7NB+1eVpkXVNpZQ1nbqi9gP6xABEOIew=",
+	app.Use(favicon.New(favicon.Config{
+		File: "./favicon.ico",
+		URL:  "/favicon.ico",
 	}))
 	publicAdminUIPaths := []string{
 		"login",
-		"logout",
 		"init",
 	}
 	privateAdminUIPaths := []string{
@@ -32,8 +48,11 @@ func MainServer(db *sql.DB) {
 		"users",
 		"tables",
 	}
+	app.Get("/admin-entry/logout", func(c *fiber.Ctx) error {
+		return handleUserLogout(c, store)
+	})
 	app.Post("/api/login", func(c *fiber.Ctx) error {
-		return handleUserLogin(c, db)
+		return handleUserLogin(c, db, store)
 	})
 	app.Get("/api/login-schema", func(c *fiber.Ctx) error {
 		return loginSchema(c)
@@ -49,11 +68,18 @@ func MainServer(db *sql.DB) {
 	privateGroup := app.Group("/admin-ui", func(c *fiber.Ctx) error {
 		return AuthMiddleware(c, store)
 	})
+
 	for _, path := range publicAdminUIPaths {
-		publicGroup.Static(path, "./admin-ui/dist/index.html")
+		publicGroup.Get(path, func(c *fiber.Ctx) error {
+			c.Render("./admin-ui/dist/index.html", fiber.Map{})
+			return c.Render("index", fiber.Map{})
+		})
 	}
+
 	for _, path := range privateAdminUIPaths {
-		privateGroup.Static(path, "./admin-ui/dist/index.html")
+		privateGroup.Get(path, func(c *fiber.Ctx) error {
+			return c.Render("index", fiber.Map{})
+		})
 	}
 	app.Static("/assets", "./admin-ui/dist/assets")
 
@@ -61,46 +87,38 @@ func MainServer(db *sql.DB) {
 }
 
 func AuthMiddleware(c *fiber.Ctx, st *session.Store) error {
-	cookie := c.Cookies("colibase")
-	if cookie == "" {
+	sess, err := st.Get(c)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+	if sess.Get("email") == nil {
 		return c.Redirect("/admin-entry/login")
 	}
+
 	return c.Next()
 }
 
-func handleUserLogin(c *fiber.Ctx, db *sql.DB) error {
-	var userSchema models.UserSchema
+func handleUserLogout(c *fiber.Ctx, st *session.Store) error {
+	sess, err := st.Get(c)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+	sess.Destroy()
+	return c.Redirect("/admin-entry/login")
+}
+
+func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
 	var formData map[string]interface{}
-	err := models.GenerateSchema("./config.json", &userSchema)
 	if err := c.BodyParser(&formData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-	for _, field := range userSchema.User.Fields {
-		value, exists := formData[field.Name]
-		if exists && field.Name == "Password" || field.Name == "password" {
-			formData[field.Name] = value.(string)
-		} else if exists && field.Name != "Password" {
-		} else {
-			formData[field.Name] = ""
-		}
-	}
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
+
 	structFormData, err := models.MapToStruct(formData)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -157,7 +175,7 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB) error {
 					"error": "invalid credentials",
 				})
 			}
-		case "ID", "id":
+		case regexp.MustCompile(`(?i)id`).FindString(key):
 			continue
 		default:
 			if value != formData[key] {
@@ -166,19 +184,38 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB) error {
 				})
 			}
 		}
-
 	}
 	for key, value := range userDeets {
 		switch key {
 		case regexp.MustCompile(`(?i)email`).FindString(key):
+			valueThing := base64.StdEncoding.EncodeToString([]byte(value.(string)))
 			c.Cookie(&fiber.Cookie{
-				Name:     "colibase",
-				Value:    value.(string),
-				Expires:  time.Now().Add(24 * 7 * time.Hour),
-				SameSite: fiber.CookieSameSiteStrictMode,
-				MaxAge:   24 * 7 * 60 * 60,
-				HTTPOnly: true,
+				Name:        "colibase",
+				Value:       valueThing,
+				Expires:     time.Now().Add(24 * 7 * time.Hour),
+				SameSite:    fiber.CookieSameSiteStrictMode,
+				MaxAge:      24 * 7 * 60 * 60,
+				HTTPOnly:    true,
+				SessionOnly: true,
 			})
+			sess, err := store.Get(c)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": err.Error(),
+				})
+			}
+			fmt.Println(sess.Get("email"))
+			keys := sess.Keys()
+			fmt.Println(keys)
+			sess.Set("email", valueThing)
+			sess.SetExpiry(24 * 7 * time.Hour)
+			err = sess.Save()
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": err.Error(),
+				})
+			}
+
 		default:
 			continue
 		}
@@ -193,57 +230,44 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB) error {
 }
 
 func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
-	var userSchema models.UserSchema
 	var formData map[string]interface{}
-	err := models.GenerateSchema("./config.json", &userSchema)
 	if err := c.BodyParser(&formData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-	for _, field := range userSchema.User.Fields {
-		value, exists := formData[field.Name]
-		switch exists {
-		case true:
-			switch field.Name {
-			case "Password", "password":
-				hashedPassword, err := utils.HashPassword(value.(string))
-				if err != nil {
-					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-						"error": err.Error(),
-					})
-				}
-				formData[field.Name] = hashedPassword
-			default:
-				formData[field.Name] = value.(string)
+
+	for key, value := range formData {
+		switch key {
+		case regexp.MustCompile(`(?i)email`).FindString(key):
+			if !regexp.MustCompile(`(?i)^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$`).MatchString(value.(string)) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "invalid email",
+				})
 			}
-		case false:
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": fmt.Sprintf("%s not provided", field.Name),
-			})
+		case regexp.MustCompile(`(?i)password`).FindString(key):
+			if len(value.(string)) < 8 {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "password must be at least 8 characters",
+				})
+			}
+		default:
+			if !regexp.MustCompile(`(?i)^[\w]+$`).MatchString(value.(string)) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "invalid characters",
+				})
+			}
+			continue
 		}
 	}
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
+
 	structFormData, err := models.MapToStruct(formData)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
+
 	err = models.GenerateAdminTable(db, "users", structFormData)
 
 	if err != nil {
@@ -251,18 +275,15 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 			"error": err.Error(),
 		})
 	}
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
+
 	err = models.InsertDataFromStruct(db, "users", structFormData)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-	if err != nil {
+		if regexp.MustCompile(`(?i)has no column named`).MatchString(err.Error()) {
+			db.Exec("DROP TABLE users;")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -279,12 +300,15 @@ func handleUserInitializatonStatus(c *fiber.Ctx, db *sql.DB, tn string) error {
 }
 
 func loginSchema(c *fiber.Ctx) error {
-	var userSchema models.UserSchema
-	err := models.GenerateSchema("./config.json", &userSchema)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
+	var userSchema models.DefaultUserSchema
+	var userSchemaInterface []interface{}
+	emptyStruct := reflect.ValueOf(&userSchema).Elem()
+	for i := 0; i < emptyStruct.NumField(); i++ {
+		field := emptyStruct.Type().Field(i)
+		userSchemaInterface = append(userSchemaInterface, map[string]interface{}{
+			"name":      field.Name,
+			"form_type": field.Tag.Get("form_type"),
 		})
 	}
-	return c.JSON(userSchema)
+	return c.JSON(userSchemaInterface)
 }
