@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"reflect"
 	"regexp"
 	"strings"
@@ -12,6 +13,16 @@ type DefaultUserSchema struct {
 	Email    string `form_type:"email"`
 	Username string `form_type:"text"`
 	Password string `form_type:"password"`
+}
+
+func InitDB() (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:./db/%s.sqlite?cache=shared&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=ON", os.Getenv("DB_NAME")))
+	if err != nil {
+		fmt.Println("Error opening database:", err)
+		return nil, err
+	}
+	db.Exec(fmt.Sprintf("CREATE DATABASE %s;", os.Getenv("DB_NAME")))
+	return db, nil
 }
 
 func MapToStruct(mapping map[string]interface{}) (interface{}, error) {

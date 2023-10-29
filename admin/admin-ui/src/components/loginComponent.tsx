@@ -1,5 +1,5 @@
-import { Button, Grid, TextField } from "@mui/material";
-import { useEffect, useState } from "react";
+import { Button, Grid, Stack, TextField } from "@mui/material";
+import { useEffect, useMemo, useState } from "react";
 
 
 interface DefaultField {
@@ -19,13 +19,13 @@ export default function LoginForm({
   const [formData, setFormData] = useState<FormInfo>({} as FormInfo);
   const [userSchema, setUserSchema] = useState<DefaultField[]>();
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
-  const [formErrors, setFormErrors] = useState<string[]>([]); 
+  const tempArray: string[] = useMemo(() => {
+    return [];
+  }
+  , []);
    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitted(true);
-      if (!formData) {
-        return setFormErrors(["Form is empty"]);
-      } else if (formData) {
       const temp = async () => {
       if (window.location.pathname === "/admin-entry/init") {
       try {
@@ -41,7 +41,11 @@ export default function LoginForm({
         } else {
           console.error("Login failed");
           response.text().then((text) => {
-            setFormErrors(text.split(","));
+            if (!tempArray.includes(text)) {
+              tempArray.push(`${text}`);
+            } else if (tempArray.includes(text)) {
+              tempArray.filter((error) => error !== text);
+            }
           }
           );
         }
@@ -63,7 +67,11 @@ export default function LoginForm({
         } else {
           console.error("Login failed");
           response.text().then((text) => {
-            setFormErrors(text.split(","));
+            if (!tempArray.includes(text)) {
+              tempArray.push(`${text}`);
+            } else if (tempArray.includes(text)) {
+              tempArray.filter((error) => error !== text);
+            }
           }
           );
         }
@@ -73,7 +81,7 @@ export default function LoginForm({
     }
   };
     temp();
-  }
+  
   }
   useEffect(() => {
     fetch("/api/login-schema")
@@ -98,6 +106,7 @@ export default function LoginForm({
       [name]: value,
     });
   };
+
   return (
     <>
       <Grid className="login-form">
@@ -106,12 +115,13 @@ export default function LoginForm({
         autoComplete="on"
         >
           <h1>{headerText}</h1>
+          <Stack spacing={2}
+          >
           { userSchema && (
             <div>
               {userSchema.map((field) => (
                 <>
                     <TextField
-                    
                       name={field.name}
                       id={field.name}
                       type={field.form_type}
@@ -121,16 +131,12 @@ export default function LoginForm({
                       label={field.name}
                       aria-required="true"
                       error={isSubmitted && !formData[field.name]}
-                      helperText={!formData[field.name] && isSubmitted ? "Required" : "" }
-                      autoComplete="on"
-
-                      
-                    />
+                />
                 </>
               ))}
             </div>
           )}
-          <p>{formErrors.join(", ")}</p>
+          </Stack>
           <Button type="submit"
           variant="contained"
           >Submit</Button>

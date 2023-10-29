@@ -24,7 +24,7 @@ func MainServer(db *sql.DB) {
 		Views: html.New("./admin-ui/dist", ".html"),
 	})
 	storageDB := sqlite3.New(sqlite3.Config{
-		Database: "./sessions.db",
+		Database: "./db/sessions.db",
 		Table:    "sessions",
 	})
 	store := session.New(
@@ -108,6 +108,7 @@ func handleUserLogout(c *fiber.Ctx, st *session.Store) error {
 		})
 	}
 	sess.Destroy()
+	c.ClearCookie("colibase")
 	return c.Redirect("/admin-entry/login")
 }
 
@@ -166,7 +167,7 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
 		case regexp.MustCompile(`(?i)password`).FindString(key):
 			if utils.CheckPassword(formData[key].(string), value.(string)) != nil {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "invalid credentials",
+					"error": "invalid password",
 				})
 			} else if utils.CheckPassword(formData[key].(string), value.(string)) == nil {
 				continue
@@ -236,6 +237,11 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 			"error": err.Error(),
 		})
 	}
+	if len(formData) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "empty field(s)",
+		})
+	}
 
 	for key, value := range formData {
 		switch key {
@@ -246,9 +252,9 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 				})
 			}
 		case regexp.MustCompile(`(?i)password`).FindString(key):
-			if len(value.(string)) < 8 {
+			if len(value.(string)) < 1 {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"error": "password must be at least 8 characters",
+					"error": "password too short",
 				})
 			}
 		default:

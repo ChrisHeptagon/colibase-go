@@ -7,6 +7,18 @@
   }
 }
 
+.__alert {
+  display: flex;
+  flex-direction: row !important;
+  animation: fadeIn 1s;
+  color: rgb(0, 0, 0);
+  font-weight: bold;
+  width: max-content;
+  height: max-content;
+  z-index: 1;
+  overflow: hidden;
+}
+
 .background {
   background-image: linear-gradient(
     rgba(255, 255, 255, 0.733),

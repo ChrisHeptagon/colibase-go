@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ChrisHeptagon/colibase/admin/db"
+	"github.com/ChrisHeptagon/colibase/admin/models"
 	"github.com/ChrisHeptagon/colibase/admin/server"
 	"github.com/ChrisHeptagon/colibase/admin/utils"
 )
@@ -17,7 +17,7 @@ func main() {
 	}
 	dbChan := make(chan *sql.DB, 1)
 	go func() {
-		Db, err := db.InitDB()
+		Db, err := models.InitDB()
 		if err != nil {
 			log.Fatalf("Error initializing DB: %v", err)
 		}
@@ -36,7 +36,7 @@ func main() {
 			err := Db.Ping()
 			if err != nil {
 				log.Printf("Database ping failed: %v", err)
-				Db, err := db.InitDB()
+				Db, err := models.InitDB()
 				if err != nil {
 					log.Fatalf("Error initializing DB: %v", err)
 				}
