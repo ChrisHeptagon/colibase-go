@@ -1,5 +1,5 @@
-import { Button, Grid, Stack, TextField } from "@mui/material";
-import { useEffect, useMemo, useState } from "react";
+import { Button, Chip, Grid, Stack, TextField } from "@mui/material";
+import { useEffect, useState } from "react";
 
 
 interface DefaultField {
@@ -19,10 +19,7 @@ export default function LoginForm({
   const [formData, setFormData] = useState<FormInfo>({} as FormInfo);
   const [userSchema, setUserSchema] = useState<DefaultField[]>();
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
-  const tempArray: string[] = useMemo(() => {
-    return [];
-  }
-  , []);
+  const tempArray: string[] = [];
    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitted(true);
@@ -131,12 +128,17 @@ export default function LoginForm({
                       label={field.name}
                       aria-required="true"
                       error={isSubmitted && !formData[field.name]}
+                      autoComplete="on"
+                      required
                 />
                 </>
               ))}
             </div>
           )}
           </Stack>
+          {isSubmitted && tempArray.length > 0 &&
+          <Chip label={tempArray} />
+          }
           <Button type="submit"
           variant="contained"
           >Submit</Button>

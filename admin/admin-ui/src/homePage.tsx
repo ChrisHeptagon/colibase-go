@@ -8,7 +8,9 @@ export default function HomePage() {
             <Sidebar />
             <div className="main-content">
                 <h1
-                >Dashboard</h1>
+                >
+                    Dashboard
+                    </h1>
                 </div>
         </div>
     );

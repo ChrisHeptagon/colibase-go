@@ -120,6 +120,43 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
 		})
 	}
 
+	if len(formData) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "empty field(s)",
+		})
+	}
+
+	for key, value := range formData {
+		switch value.(string) {
+		case "":
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "empty field(s)",
+			})
+		}
+
+		switch key {
+		case regexp.MustCompile(`(?i)email`).FindString(key):
+			if !regexp.MustCompile(`(?i)^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$`).MatchString(value.(string)) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "invalid email",
+				})
+			}
+		case regexp.MustCompile(`(?i)password`).FindString(key):
+			if len(value.(string)) < 1 {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "password too short",
+				})
+			}
+		default:
+			if !regexp.MustCompile(`(?i)^[\w]+$`).MatchString(value.(string)) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "invalid characters",
+				})
+			}
+			continue
+		}
+	}
+
 	structFormData, err := models.MapToStruct(formData)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -165,6 +202,8 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
 	for key, value := range userDeets {
 		switch key {
 		case regexp.MustCompile(`(?i)password`).FindString(key):
+			fmt.Println(value.(string))
+			fmt.Println(formData[key].(string))
 			if utils.CheckPassword(formData[key].(string), value.(string)) != nil {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 					"error": "invalid password",
@@ -252,6 +291,14 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 				})
 			}
 		case regexp.MustCompile(`(?i)password`).FindString(key):
+			HashedPassword, err := utils.HashPassword(value.(string))
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": err.Error(),
+				})
+			}
+			formData[key] = HashedPassword
+
 			if len(value.(string)) < 1 {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 					"error": "password too short",
