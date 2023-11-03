@@ -13,16 +13,14 @@ import (
 	"github.com/ChrisHeptagon/colibase/admin/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/gofiber/storage/sqlite3/v2"
-	"github.com/gofiber/template/html/v2"
 )
 
 func MainServer(db *sql.DB) {
-	app := fiber.New(fiber.Config{
-		Views: html.New("./admin-ui/dist", ".html"),
-	})
+	app := fiber.New()
 	storageDB := sqlite3.New(sqlite3.Config{
 		Database: "./db/sessions.db",
 		Table:    "sessions",
@@ -38,6 +36,11 @@ func MainServer(db *sql.DB) {
 		File: "./favicon.ico",
 		URL:  "/favicon.ico",
 	}))
+
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "http://localhost:4321",
+	}))
+
 	publicAdminUIPaths := []string{
 		"login",
 		"init",
@@ -361,6 +364,7 @@ func loginSchema(c *fiber.Ctx) error {
 		userSchemaInterface = append(userSchemaInterface, map[string]interface{}{
 			"name":      field.Name,
 			"form_type": field.Tag.Get("form_type"),
+			"required":  field.Tag.Get("required"),
 		})
 	}
 	return c.JSON(userSchemaInterface)

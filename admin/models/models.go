@@ -10,9 +10,9 @@ import (
 )
 
 type DefaultUserSchema struct {
-	Email    string `form_type:"email"`
-	Username string `form_type:"text"`
-	Password string `form_type:"password"`
+	Email    string `form_type:"email" required:"true"`
+	Username string `form_type:"text" required:"true"`
+	Password string `form_type:"password" required:"true"`
 }
 
 func InitDB() (*sql.DB, error) {

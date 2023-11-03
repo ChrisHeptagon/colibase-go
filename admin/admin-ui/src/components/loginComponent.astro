@@ -1,0 +1,148 @@
+---
+const { headerText } = Astro.props;
+
+const UserSchema = await fetch("http://0.0.0.0:6700/api/login-schema").then(
+  (res) => res.json()
+);
+---
+
+<>
+  <style lang="scss">
+    @keyframes fadeIn {
+      0% {
+        opacity: 0;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
+    * {
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    div {
+      animation: fadeIn 0.5s ease-in-out;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      /* shadow */
+      box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.75);
+      height: 100%;
+      form {
+        background-image: linear-gradient(#fff, #9f9898);
+        padding: 40px;
+        border-radius: 10px;
+
+        fieldset {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          border-radius: 10px;
+          padding: 20px;
+          margin: 0 0 20px 0;
+          legend {
+            font-size: 20px;
+            text-align: center;
+            font-family: Arial, Helvetica, sans-serif;
+          }
+          input {
+            border: none;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+            width: 100%;
+            font-size: 16px;
+            font-family: Arial, Helvetica, sans-serif;
+          }
+        }
+
+        h1 {
+          text-align: center;
+          color: #000000;
+          font-size: 24px;
+          margin: 0 0 20px 0;
+          font-family: Arial, Helvetica, sans-serif;
+        }
+      }
+      .error-item {
+        color: rgb(0, 0, 0);
+        background-color: rgb(255, 0, 0);
+        text-transform: capitalize;
+        border: 1px solid red;
+        border-radius: 5px;
+        padding: 10px;
+        font-size: 14px;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+    }
+  </style>
+  <div>
+    <form novalidate autocomplete="on" id="login-form">
+      <h1>{headerText}</h1>
+      <fieldset>
+        <legend>Enter your credentials</legend>
+        {
+          UserSchema.map((field: any) => (
+            <>
+              <label for={field.name}>{field.name}</label>
+              <input
+                type={field.name}
+                name={field.name}
+                id={field.name}
+                required={field.required}
+                aria-required={field.required}
+                aria-label={field.name}
+              />
+            </>
+          ))
+        }
+        <p id="error"></p>
+      </fieldset>
+      <button type="submit">Login</button>
+    </form>
+  </div>
+  <script>
+    const form = document.querySelector("#login-form");
+    if (form) {
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        let formData = new FormData(form as HTMLFormElement);
+        const data = Object.fromEntries(formData.entries());
+        console.log(data);
+        let sentData;
+        if (window.location.pathname.includes("login")) {
+        sentData = await fetch("http://0.0.0.0:6700/api/login", {
+          method: "POST",
+          body: JSON.stringify(data),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      } else if (window.location.pathname.includes("init")) {
+        sentData = await fetch("http://0.0.0.0:6700/api/init-login", {
+          method: "POST",
+          body: JSON.stringify(data),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      }
+        const response = await sentData?.json();
+        console.log(response)
+
+        const errorElement = document.getElementById("error");
+        if (errorElement) {
+          errorElement.innerHTML = "";
+          if (response) {
+            errorElement.innerHTML = String(response.error);
+            errorElement.className = "error-item";
+            
+          }
+        }
+
+
+      });
+    }
+  </script>
+</>
