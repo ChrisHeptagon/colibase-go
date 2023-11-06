@@ -128,7 +128,8 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
 			"error": "empty field(s)",
 		})
 	}
-
+	var invalidKeys []string
+	var fieldErrors []string
 	for key, value := range formData {
 		switch value.(string) {
 		case "":
@@ -137,27 +138,40 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
 			})
 		}
 
-		switch key {
-		case regexp.MustCompile(`(?i)email`).FindString(key):
+		if regexp.MustCompile(`(?i)email`).MatchString(key) {
 			if !regexp.MustCompile(`(?i)^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$`).MatchString(value.(string)) {
-				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"error": "invalid email",
-				})
+				invalidKeys = append(invalidKeys, key)
+				fieldErrors = append(fieldErrors, fmt.Sprintf("Invalid %s", key))
+				continue
 			}
-		case regexp.MustCompile(`(?i)password`).FindString(key):
+			continue
+		} else if regexp.MustCompile(`(?i)password`).MatchString(key) {
 			if len(value.(string)) < 1 {
-				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"error": "password too short",
-				})
+				invalidKeys = append(invalidKeys, key)
+				fieldErrors = append(fieldErrors, fmt.Sprintf("%s too short", key))
+				continue
 			}
-		default:
+			continue
+		} else {
 			if !regexp.MustCompile(`(?i)^[\w]+$`).MatchString(value.(string)) {
-				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"error": "invalid characters",
-				})
+				invalidKeys = append(invalidKeys, key)
+				fieldErrors = append(fieldErrors, fmt.Sprintf("Invalid characters in %s", key))
+				continue
 			}
 			continue
 		}
+	}
+
+	if len(invalidKeys) < 1 || invalidKeys == nil {
+		fmt.Println("no errors")
+	} else if len(invalidKeys) == 1 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fieldErrors,
+		})
+	} else {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"errors": fieldErrors,
+		})
 	}
 
 	structFormData, err := models.MapToStruct(formData)

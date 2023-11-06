@@ -1,9 +1,11 @@
 ---
+import ColibaseLogo from "../../public/colibase_logo.svg";
 const { headerText } = Astro.props;
 
 const UserSchema = await fetch("http://0.0.0.0:6700/api/login-schema").then(
   (res) => res.json()
 );
+
 ---
 
 <>
@@ -16,6 +18,14 @@ const UserSchema = await fetch("http://0.0.0.0:6700/api/login-schema").then(
         opacity: 1;
       }
     }
+    @keyframes fadeOut {
+      0% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+      }
+    }
     * {
       font-family: Arial, Helvetica, sans-serif;
     }
@@ -25,60 +35,141 @@ const UserSchema = await fetch("http://0.0.0.0:6700/api/login-schema").then(
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      /* shadow */
       box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.75);
       height: 100%;
       form {
-        background-image: linear-gradient(#fff, #9f9898);
-        padding: 40px;
+        background-color: #ffffff;
+        padding: 20px;
         border-radius: 10px;
-
-        fieldset {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          border-radius: 10px;
-          padding: 20px;
-          margin: 0 0 20px 0;
-          legend {
-            font-size: 20px;
-            text-align: center;
-            font-family: Arial, Helvetica, sans-serif;
-          }
-          input {
-            border: none;
-            border-radius: 5px;
-            padding: 10px;
-            margin: 10px 0;
-            width: 100%;
-            font-size: 16px;
-            font-family: Arial, Helvetica, sans-serif;
-          }
+        box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.75);
+        .logo {
+          margin: 0 auto;
+          margin-bottom: 20px;
+          display: block;
+          width: 100px;
+          filter: drop-shadow(0px 0px 10px rgba(0, 0, 0, 0.75));
         }
-
         h1 {
           text-align: center;
           color: #000000;
           font-size: 24px;
           margin: 0 0 20px 0;
-          font-family: Arial, Helvetica, sans-serif;
+          text-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+        }
+        fieldset {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          border: none;
+          padding-left: 10px;
+          padding-right: 10px;
+          legend {
+            font-size: 20px;
+            text-align: center;
+          }
+          label {
+            font-size: 16px;
+            margin-top: 10px;
+            align-self: flex-start;
+          }
+          input {
+            display: block;
+            box-shadow: 0px 0px 10px 0px rgb(0, 0, 0, 0.5);
+            border: 1px 2px solid #000000;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 5px;
+            font-size: 16px;
+          }
+          .form-error {
+            color: red;
+            font-size: 14px;
+            text-shadow: 0px 0px 10px rgb(92, 11, 11);
+            margin: 5px;
+            align-self: flex-start;
+            transition: all 0.5s ease-in-out;
+            animation: fadeIn 0.5s ease-in-out;
+          }
+        }
+      }
+      button {
+        border: none;
+        border-radius: 5px;
+        padding: 10px;
+        width: 100%;
+        font-weight: bold;
+        box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.75);
+        font-size: 16px;
+        background-image: radial-gradient(
+          circle at 90% 100%,
+          #b8e986 0%,
+          #8ecf70 50%,
+          #5ca860
+        );
+
+        cursor: pointer;
+        @keyframes outlineFadeIn {
+          0% {
+            outline: 0px solid #000000;
+          }
+          100% {
+            outline: 2px solid #000000;
+          }
+        }
+        @keyframes outlineFadeOut {
+          0% {
+            outline: 2px solid #000000;
+          }
+          100% {
+            outline: 0px solid #000000;
+          }
+        }
+        @keyframes activeButton {
+          0% {
+            filter: brightness(1);
+          }
+          100% {
+            filter: brightness(0.8);
+          }
+        }
+        &:hover {
+          outline: 2px solid #000000;
+          animation: outlineFadeIn 0.5s ease-in-out;
+        }
+        &:not(:hover) {
+          animation: outlineFadeOut 0.5s ease-in-out;
+          outline: none;
+        }
+        &:active {
+          animation: activeButton 0.5s ease-in-out;
+          filter: brightness(0.8);
+        }
+        &:not(:active) {
+          transition: filter 0.5s ease-in-out;
+          filter: brightness(1);
         }
       }
       .error-item {
         color: rgb(0, 0, 0);
-        background-color: rgb(255, 0, 0);
+        background-color: rgb(255, 255, 255);
         text-transform: capitalize;
-        border: 1px solid red;
+        border: 5px solid red;
         border-radius: 5px;
+        box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.75);
         padding: 10px;
         font-size: 14px;
         font-family: Arial, Helvetica, sans-serif;
+        animation: fadeIn 0.5s ease-in-out;
       }
     }
   </style>
+
+  
+
   <div>
     <form novalidate autocomplete="on" id="login-form">
+      <img src={ColibaseLogo.src} alt="Colibase Logo" class="logo" />
       <h1>{headerText}</h1>
       <fieldset>
         <legend>Enter your credentials</legend>
@@ -91,57 +182,141 @@ const UserSchema = await fetch("http://0.0.0.0:6700/api/login-schema").then(
                 name={field.name}
                 id={field.name}
                 required={field.required}
+                autocomplete="on"
                 aria-required={field.required}
                 aria-label={field.name}
+                aria-describedby={`${field.name}-error`}
               />
+              <span id={`${field.name}-error`} />
             </>
           ))
         }
-        <p id="error"></p>
+        <p id="error" style="display: none;"></p>
       </fieldset>
-      <button type="submit">Login</button>
+      <button type="submit" id="button">Login</button>
     </form>
   </div>
+
   <script>
+
+
+    var errorSpan: HTMLElement | null;
+
+    const button = document.querySelector("#button");
+    if (button) {
+      if (window.location.pathname.includes("login")) {
+        button.innerHTML = "Login";
+      } else if (window.location.pathname.includes("init")) {
+        button.innerHTML = "Sign Up";
+      }
+    }
+
     const form = document.querySelector("#login-form");
     if (form) {
+      form.addEventListener("change", (e) => {
+        const target = e.target as HTMLInputElement;
+        errorSpan = document.getElementById(`${target.name}-error`);
+        if (errorSpan) {
+          if (target.validity.valueMissing) {
+            errorSpan.className = "form-error";
+            errorSpan.innerText = `⚠️ ${target.name} is required`;
+          } else {
+            errorSpan.innerHTML = "";
+          }
+        }
+      });
+
+      const buttonElement = document.getElementById("button");
+      if (buttonElement) {
+        buttonElement.addEventListener("click", () => {
+          const formElements = document.querySelectorAll(
+            "#login-form input"
+          ) as NodeListOf<HTMLInputElement>;
+          formElements.forEach((element) => {
+            if (element.validity.valueMissing) {
+              errorSpan = document.getElementById(`${element.name}-error`);
+              if (errorSpan) {
+                errorSpan.className = "form-error";
+                errorSpan.innerHTML = `⚠️ ${element.name} is required`;
+              }
+            } else if (element.validity.typeMismatch) {
+              errorSpan = document.getElementById(`${element.name}-error`);
+              if (errorSpan) {
+                errorSpan.className = "form-error";
+                errorSpan.innerHTML = `⚠️ ${element.name} is not a valid ${element.type}`;
+              }
+            } 
+          });
+        });
+      }
+
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         let formData = new FormData(form as HTMLFormElement);
         const data = Object.fromEntries(formData.entries());
-        console.log(data);
         let sentData;
         if (window.location.pathname.includes("login")) {
-        sentData = await fetch("http://0.0.0.0:6700/api/login", {
-          method: "POST",
-          body: JSON.stringify(data),
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-      } else if (window.location.pathname.includes("init")) {
-        sentData = await fetch("http://0.0.0.0:6700/api/init-login", {
-          method: "POST",
-          body: JSON.stringify(data),
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-      }
+          sentData = await fetch(`http://0.0.0.0:6700/api/login`, {
+            method: "POST",
+            body: JSON.stringify(data),
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+        } else if (window.location.pathname.includes("init")) {
+          sentData = await fetch("http://0.0.0.0:6700/api/init-login", {
+            method: "POST",
+            body: JSON.stringify(data),
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+        }
         const response = await sentData?.json();
-        console.log(response)
-
         const errorElement = document.getElementById("error");
         if (errorElement) {
           errorElement.innerHTML = "";
           if (response) {
-            errorElement.innerHTML = String(response.error);
-            errorElement.className = "error-item";
-            
+            if (RegExp("Credentials", "i").test(String(response.error))) {
+              errorElement.className = "error-item";
+              errorElement.style.display = "block";
+              errorElement.innerHTML = "Invalid credentials";
+            } else {
+              errorElement.innerHTML = "";
+              errorElement.style.display = "none";
+            }
+            const formElements = document.querySelectorAll(
+              "#login-form input"
+            ) as NodeListOf<HTMLInputElement>;
+            formElements.forEach((element) => {
+              if (Array.isArray(response.error)) {
+                response.error.forEach((error: any) => {
+                  if (String(error).includes(element.name)) {
+                    errorSpan = document.getElementById(
+                      `${element.name}-error`
+                    );
+                    if (errorSpan) {
+                      errorSpan.className = "form-error";
+                      errorSpan.innerHTML = `⚠️ ${error}`;
+                    }
+                  }
+                });
+              } else if (RegExp("empty", "i").test(String(response.error))) {
+                errorElement.className = "error-item";
+                errorElement.style.display = "block";
+                errorElement.innerHTML = "Please fill out all fields";
+              } else {
+              if (String(response.error).includes(element.name)) {
+                errorSpan = document.getElementById(`${element.name}-error`);
+                if (errorSpan) {
+                  errorSpan.className = "form-error";
+                  errorSpan.innerHTML = `⚠️ ${response.error}`;
+                }
+              }
+            }
+            });
           }
         }
-
-
       });
     }
   </script>
