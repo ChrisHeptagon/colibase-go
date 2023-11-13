@@ -14,10 +14,10 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions = {
-    init: async (event) => {
+    login: async (event) => {
         const formData = await event.request.formData();
      const finalForm = Object.fromEntries(formData.entries());
-        const fetchResult = await event.fetch(`${rootURL}/api/init-login`, {
+        const fetchResult = await event.fetch(`${rootURL}/api/login`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

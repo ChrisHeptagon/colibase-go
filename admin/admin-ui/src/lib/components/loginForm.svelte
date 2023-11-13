@@ -2,10 +2,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import ColibaseLogo from "$lib/assets/colibase_logo.svg"
+  import { enhance } from "$app/forms";
   export let UserSchema: any;
   let error: string;
   export let Method: string;
-  let PostURL: string;
   export let Heading: string;
   let showError: boolean = false;
 
@@ -39,22 +39,6 @@
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
-    const response = await fetch(PostURL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
-    const json = await response.json();
-    if (json.error) {
-      error = json.error;
-    } else {
-      window.location.href = "/admin/ui/dashboard";
-      error = "";
-    }
     form.querySelectorAll("input").forEach((input) => {
       handleInputChange({ target: input } as unknown as Event);
     });
@@ -62,7 +46,20 @@
 </script>
 
 <div class="login-form">
-<form id="login-form" novalidate autocomplete="on" method="POST" action="?/{Method}" >
+<form id="login-form" novalidate autocomplete="on" method="POST" action="?/{Method}" 	use:enhance={({ formElement, formData, action, cancel, submitter }) => {
+  formElement.addEventListener("submit", handleSubmit);
+  return async ({result}) => {
+    if (result) {
+      if (result.type === "error") {
+        error = result.error;
+        showError = true;
+      } else {
+        error = "";
+        showError = false;
+      }
+    }
+  }
+}}>
   <h1>{Heading}</h1>
   <img class="logo" src="{ColibaseLogo}" alt="logo" />
   <fieldset>
