@@ -14,7 +14,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/favicon"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/gofiber/storage/sqlite3/v2"
 )
@@ -32,28 +31,9 @@ func MainServer(db *sql.DB) {
 			KeyLookup:  "cookie:colibase",
 		})
 	app.Use(compress.New())
-	app.Use(favicon.New(favicon.Config{
-		File: "./favicon.ico",
-		URL:  "/favicon.ico",
-	}))
-
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "http://localhost:4321",
+		AllowOrigins: "*",
 	}))
-
-	publicAdminUIPaths := []string{
-		"login",
-		"init",
-	}
-	privateAdminUIPaths := []string{
-		"dashboard",
-		"settings",
-		"users",
-		"tables",
-	}
-	app.Get("/admin-entry/logout", func(c *fiber.Ctx) error {
-		return handleUserLogout(c, store)
-	})
 	app.Post("/api/login", func(c *fiber.Ctx) error {
 		return handleUserLogin(c, db, store)
 	})
@@ -67,25 +47,6 @@ func MainServer(db *sql.DB) {
 		return handleUserInitializaton(c, db)
 	})
 
-	publicGroup := app.Group("/admin-entry")
-	privateGroup := app.Group("/admin-ui", func(c *fiber.Ctx) error {
-		return AuthMiddleware(c, store)
-	})
-
-	for _, path := range publicAdminUIPaths {
-		publicGroup.Get(path, func(c *fiber.Ctx) error {
-			c.Render("./admin-ui/dist/index.html", fiber.Map{})
-			return c.Render("index", fiber.Map{})
-		})
-	}
-
-	for _, path := range privateAdminUIPaths {
-		privateGroup.Get(path, func(c *fiber.Ctx) error {
-			return c.Render("index", fiber.Map{})
-		})
-	}
-	app.Static("/assets", "./admin-ui/dist/assets")
-
 	app.Listen(":6700")
 }
 
@@ -97,22 +58,10 @@ func AuthMiddleware(c *fiber.Ctx, st *session.Store) error {
 		})
 	}
 	if sess.Get("email") == nil {
-		return c.Redirect("/admin-entry/login")
+		return c.Redirect("/admin/entry/login")
 	}
 
 	return c.Next()
-}
-
-func handleUserLogout(c *fiber.Ctx, st *session.Store) error {
-	sess, err := st.Get(c)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-	sess.Destroy()
-	c.ClearCookie("colibase")
-	return c.Redirect("/admin-entry/login")
 }
 
 func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
@@ -277,7 +226,6 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
 			continue
 		}
 	}
-	c.Redirect("/admin-ui/dashboard")
 	return c.JSON(
 		fiber.Map{
 			"message": "Login Successful",

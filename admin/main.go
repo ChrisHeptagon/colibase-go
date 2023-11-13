@@ -2,7 +2,10 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
+	"os"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -27,7 +30,22 @@ func main() {
 	Db := <-dbChan
 	defer Db.Close()
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		wd, err := os.Getwd()
+		fmt.Println(wd)
+		if err != nil {
+			log.Fatalf("Error getting working directory: %v", err)
+		}
+		cmd := exec.Command("node", fmt.Sprintf("%s/admin-ui/build/index.js", wd))
+		cmd.Stdout = os.Stdout
+		cmd.Env = os.Environ()
+		err = cmd.Start()
+		if err != nil {
+			log.Fatalf("Error starting admin-ui: %v", err)
+		}
+	}()
 	go func() {
 		defer wg.Done()
 		ticker := time.NewTicker(10 * time.Second)
