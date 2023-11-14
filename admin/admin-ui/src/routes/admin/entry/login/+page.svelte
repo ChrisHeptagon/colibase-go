@@ -8,5 +8,5 @@
     
 </svelte:head>
 
-<LoginForm Heading="Login" Method="login" UserSchema="{$page.data.UserSchema}"/>
+<LoginForm Heading="Login" UserSchema="{$page.data.UserSchema}"/>
 

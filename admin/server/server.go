@@ -306,7 +306,12 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 			"error": err.Error(),
 		})
 	}
-	return c.SendString("User Initialization Successful")
+	return c.JSON(
+		fiber.Map{
+			"message": "User Initialized",
+			"status":  fiber.StatusOK,
+		},
+	)
 }
 
 func handleUserInitializatonStatus(c *fiber.Ctx, db *sql.DB, tn string) error {

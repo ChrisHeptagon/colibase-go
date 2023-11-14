@@ -1,4 +1,4 @@
-import type { Actions } from '@sveltejs/kit';
+import { fail, type Actions } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 let rootURL: string;
@@ -14,10 +14,11 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions = {
-    init: async (event) => {
-        const formData = await event.request.formData();
+    action: async ({request}) => {
+        const formData = await request.formData();
+        if (formData) {
      const finalForm = Object.fromEntries(formData.entries());
-        const fetchResult = await event.fetch(`${rootURL}/api/init-login`, {
+        const fetchResult = await fetch(`${rootURL}/api/init-login`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -25,8 +26,12 @@ export const actions = {
             body: JSON.stringify(finalForm),
         }
     )    
-    const json = await fetchResult.json();
+    console.log(fetchResult)
+    const json = await fetchResult.json()
     console.log(json)
-    },
+    if (json.error) {
+        return fail(400, json.error);
+    }
+        }}
 } satisfies Actions;
 

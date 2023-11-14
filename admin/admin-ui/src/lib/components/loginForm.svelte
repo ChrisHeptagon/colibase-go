@@ -1,11 +1,9 @@
 
 <script lang="ts">
-  import { onMount } from "svelte";
   import ColibaseLogo from "$lib/assets/colibase_logo.svg"
   import { enhance } from "$app/forms";
   export let UserSchema: any;
-  let error: string;
-  export let Method: string;
+  let error: string | Record<string, unknown> | undefined;
   export let Heading: string;
   let showError: boolean = false;
 
@@ -46,16 +44,18 @@
 </script>
 
 <div class="login-form">
-<form id="login-form" novalidate autocomplete="on" method="POST" action="?/{Method}" 	use:enhance={({ formElement, formData, action, cancel, submitter }) => {
+<form id="login-form" novalidate autocomplete="on" method="POST" action="?/action" 	use:enhance={({ formElement, formData, action, cancel, submitter }) => {
   formElement.addEventListener("submit", handleSubmit);
-  return async ({result}) => {
+  return async ({ result, update }) => {
+    console.log("result: ", result);
     if (result) {
-      if (result.type === "error") {
-        error = result.error;
-        showError = true;
-      } else {
+      if (result.type === "failure") {
+        error = result.data
+        console.log("error: ", error);
+      } else if (result.type === "success") {
         error = "";
-        showError = false;
+      } else if (result.type === "error") {
+        error = result.error;
       }
     }
   }

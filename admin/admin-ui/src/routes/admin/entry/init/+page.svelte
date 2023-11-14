@@ -7,5 +7,5 @@
 
 
 
-<LoginForm Heading="Initial Login" Method="init" UserSchema="{data.UserSchema}"/>
+<LoginForm Heading="Initial Login" UserSchema="{data.UserSchema}"/>
 
