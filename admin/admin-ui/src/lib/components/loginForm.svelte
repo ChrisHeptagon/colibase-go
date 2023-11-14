@@ -77,6 +77,7 @@
           aria-label={field.name}
           aria-describedby={`${field.name}-error`}
           aria-invalid={showError}
+          pattern="{field.pattern}"
         />
         <span id={`${field.name}-error`} class="form-error"></span>
       {/each}

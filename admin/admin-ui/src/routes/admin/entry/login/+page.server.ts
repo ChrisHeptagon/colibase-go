@@ -27,6 +27,7 @@ export const actions = {
         }
     )    
     const json = await fetchResult.json();
+    console.log(json);
     if (json.error) {
         return fail(400, json.error);
     }

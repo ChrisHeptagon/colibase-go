@@ -17,6 +17,7 @@ export const actions = {
     action: async ({request}) => {
         const formData = await request.formData();
         if (formData) {
+            console.log(formData)
      const finalForm = Object.fromEntries(formData.entries());
         const fetchResult = await fetch(`${rootURL}/api/init-login`, {
             method: 'POST',

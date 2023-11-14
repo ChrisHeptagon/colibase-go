@@ -10,9 +10,9 @@ import (
 )
 
 type DefaultUserSchema struct {
-	Email    string `form_type:"email" required:"true"`
-	Username string `form_type:"text" required:"true"`
-	Password string `form_type:"password" required:"true"`
+	Email    string `form_type:"email" required:"true" pattern:"^[a-zA-Z0-9.!#$%&'*+/=?^_ + \"\" + {|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]"`
+	Username string `form_type:"text" required:"true" pattern:"^[a-zA-Z0-9_]*$"`
+	Password string `form_type:"password" required:"true" pattern:"[^\\s]+"`
 }
 
 func InitDB() (*sql.DB, error) {

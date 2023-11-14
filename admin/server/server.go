@@ -241,71 +241,42 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 			"error": err.Error(),
 		})
 	}
+
 	if len(formData) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "empty field(s)",
 		})
 	}
-
-	for key, value := range formData {
-		switch key {
-		case regexp.MustCompile(`(?i)email`).FindString(key):
-			if !regexp.MustCompile(`(?i)^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$`).MatchString(value.(string)) {
-				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"error": "invalid email",
-				})
+	var schemaInterface map[string]interface{}
+	defaultUserSchema := models.DefaultUserSchema{}
+	testThing := reflect.ValueOf(&defaultUserSchema).Elem()
+	for i := 0; i < testThing.NumField(); i++ {
+		field := testThing.Type().Field(i)
+		var tempInterface []map[string]interface{}
+		tempInterface = append(tempInterface, map[string]interface{}{
+			"name":      field.Name,
+			"form_type": field.Tag.Get("form_type"),
+			"required":  field.Tag.Get("required"),
+			"pattern":   field.Tag.Get("pattern"),
+		})
+		for key, value := range tempInterface {
+			schemaInterface = map[string]interface{}{
+				tempInterface[key]["name"].(string): value,
 			}
-		case regexp.MustCompile(`(?i)password`).FindString(key):
-			HashedPassword, err := utils.HashPassword(value.(string))
-			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error": err.Error(),
-				})
-			}
-			formData[key] = HashedPassword
-
-			if len(value.(string)) < 1 {
-				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"error": "password too short",
-				})
-			}
-		default:
-			if !regexp.MustCompile(`(?i)^[\w]+$`).MatchString(value.(string)) {
-				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"error": "invalid characters",
-				})
-			}
-			continue
 		}
 	}
-
-	structFormData, err := models.MapToStruct(formData)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+	for key, value := range schemaInterface {
+		fmt.Printf("Key:%v\n", key)
+		fmt.Printf("Value:%v\n", value)
 	}
 
-	err = models.GenerateAdminTable(db, "users", structFormData)
+	// for key, value := range formData {
+	// 	fmt.Println(key)
+	// 	fmt.Println(value)
+	// }
 
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
+	fmt.Println(schemaInterface)
 
-	err = models.InsertDataFromStruct(db, "users", structFormData)
-	if err != nil {
-		if regexp.MustCompile(`(?i)has no column named`).MatchString(err.Error()) {
-			db.Exec("DROP TABLE users;")
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": err.Error(),
-			})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
 	return c.JSON(
 		fiber.Map{
 			"message": "User Initialized",
@@ -332,6 +303,7 @@ func loginSchema(c *fiber.Ctx) error {
 			"name":      field.Name,
 			"form_type": field.Tag.Get("form_type"),
 			"required":  field.Tag.Get("required"),
+			"pattern":   field.Tag.Get("pattern"),
 		})
 	}
 	return c.JSON(userSchemaInterface)
