@@ -11,6 +11,7 @@ export const load: PageServerLoad = async () => {
   const response = await fetch(`${rootURL}/api/login-schema`);
   const json = await response.json();
   UserSchema = json;
+  console.log(UserSchema);
   return { UserSchema };
 };
 

@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -23,25 +24,12 @@ var SchemaFields = []string{
 
 func GenAdminSchema(db *sql.DB, tableName string) (map[string]map[string]string, error) {
 	var schema = make(map[string]map[string]string)
-	var combinedStuff []string
-	for i := 0; i < len(SchemaFields); i++ {
-		combinedStuff = append(combinedStuff, SchemaFields[i])
-	}
-	firstQuery := fmt.Sprintf("SELECT %s FROM %s;", strings.Join(combinedStuff, ", "), tableName)
-	fmt.Println(firstQuery)
+	makeQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INTEGER PRIMARY KEY AUTOINCREMENT, schema BLOB UNIQUE);", tableName)
+	db.Exec(makeQuery)
+	firstQuery := fmt.Sprintf("SELECT schema FROM %s;", tableName)
 	rows, err := db.Prepare(firstQuery)
 	if err != nil {
-		if regexp.MustCompile(`(?i)no such table`).MatchString(err.Error()) {
-			var combinedStuff []string
-			for i := 0; i < len(SchemaFields); i++ {
-				combinedStuff = append(combinedStuff, fmt.Sprintf("%s TEXT", SchemaFields[i]))
-			}
-			fmt.Println(combinedStuff)
-			finalQuery := fmt.Sprintf("CREATE TABLE %s (id INTEGER PRIMARY KEY AUTOINCREMENT, %s);", tableName, strings.Join(combinedStuff, ", "))
-			fmt.Println(finalQuery)
-			db.Exec(finalQuery)
-			return nil, fmt.Errorf("table %s does not exist", tableName)
-		}
+		return nil, err
 	}
 
 	defer rows.Close()
@@ -50,17 +38,19 @@ func GenAdminSchema(db *sql.DB, tableName string) (map[string]map[string]string,
 		return nil, err
 	}
 	defer result.Close()
-	var tempMap interface{}
+	var schemaByte []byte
 	for result.Next() {
 		for i := 0; i < len(SchemaFields); i++ {
-			err := result.Scan(&tempMap)
+			err := result.Scan(&schemaByte)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
-	fmt.Println("tempMap: ", tempMap)
-	fmt.Println("schema: ", schema)
+	err = json.Unmarshal(schemaByte, &schema)
+	if err != nil {
+		return nil, err
+	}
 	if schema == nil || len(schema) < 1 {
 		defaultSchema := reflect.TypeOf(&DefaultUserSchema{}).Elem()
 		for i := 0; i < defaultSchema.NumField(); i++ {
@@ -70,22 +60,14 @@ func GenAdminSchema(db *sql.DB, tableName string) (map[string]map[string]string,
 				schema[field.Name][schemaField] = field.Tag.Get(schemaField)
 			}
 		}
-
-		prepQuery := fmt.Sprintf("INSERT INTO %s(%s) VALUES(%s);", tableName, strings.Join(SchemaFields, ", "), strings.Join(strings.Split(strings.Repeat("?", len(SchemaFields)), ""), ", "))
-		fmt.Println(prepQuery)
-		prepRows, err := db.Prepare(prepQuery)
-		if err != nil {
-			return nil, err
-		}
-		defer prepRows.Close()
-		prepRows.Exec(strings.Join(SchemaFields, ", "))
 		return schema, nil
 	}
 	return schema, nil
 }
 
 func InitDB() (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", fmt.Sprintf("file:./db/%s.sqlite?cache=shared&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=ON", os.Getenv("DB_NAME")))
+	// db, err := sql.Open("sqlite3", fmt.Sprintf("file:./db/%s.sqlite?cache=shared&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=ON", os.Getenv("DB_NAME")))
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:./db/%s.sqlite?cache=shared&mode=rwc&_synchronous=NORMAL&_foreign_keys=ON", os.Getenv("DB_NAME")))
 	if err != nil {
 		fmt.Println("Error opening database:", err)
 		return nil, err

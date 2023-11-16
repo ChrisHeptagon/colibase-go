@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -15,9 +16,15 @@ import (
 )
 
 func main() {
-	if err := utils.HandleEnvVars(); err != nil {
-		log.Fatalf("Error handling environment variables: %v", err)
+	_, err := os.OpenFile(".env", os.O_RDONLY, 0666)
+	if errors.Is(err, os.ErrNotExist) {
+		fmt.Println("No .env file found, using environment variables from system")
+	} else {
+		if err := utils.HandleEnvVars(); err != nil {
+			log.Fatalf("Error handling environment variables: %v", err)
+		}
 	}
+
 	dbChan := make(chan *sql.DB, 1)
 	go func() {
 		Db, err := models.InitDB()

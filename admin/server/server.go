@@ -260,7 +260,6 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 			})
 		}
 		if schema[key] != nil {
-			fmt.Println(schema[key])
 			if schema[key]["required"] == "true" {
 				if value == "" {
 					formErrors = append(formErrors, fmt.Sprintf("Empty Field: %s", key))
@@ -277,7 +276,6 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 
 		}
 	}
-	fmt.Println(formData)
 	if len(formErrors) > 0 || formData["failure"] == "true" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": formErrors,
@@ -308,7 +306,6 @@ func loginSchema(db *sql.DB, c *fiber.Ctx) error {
 			"values": value,
 		})
 	}
-	fmt.Println(jsonSchema)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
