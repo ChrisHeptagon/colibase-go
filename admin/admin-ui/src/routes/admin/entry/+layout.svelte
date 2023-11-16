@@ -1,12 +1,5 @@
-<script lang="ts">
-import ColibaseLogo from "$lib/assets/favicon.ico";
-</script>
 
 
-
-<svelte:head>
-  <link rel="favicon" href={ColibaseLogo} />
-</svelte:head>
 
 <style lang="scss">
 

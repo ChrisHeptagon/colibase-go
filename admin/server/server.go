@@ -3,7 +3,6 @@ package server
 import (
 	"database/sql"
 	"fmt"
-	"reflect"
 	"regexp"
 	"time"
 
@@ -38,7 +37,7 @@ func MainServer(db *sql.DB) {
 		return handleUserLogin(c, db, store)
 	})
 	app.Get("/api/login-schema", func(c *fiber.Ctx) error {
-		return loginSchema(c)
+		return loginSchema(db, c)
 	})
 	app.Get("/api/user-initialization-status", func(c *fiber.Ctx) error {
 		return handleUserInitializatonStatus(c, db, "users")
@@ -235,48 +234,55 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
 }
 
 func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
-	var formData map[string]interface{}
+	var formData map[string]string
 	if err := c.BodyParser(&formData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
-
 	if len(formData) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "empty field(s)",
 		})
 	}
-	var schemaInterface map[string]interface{}
-	defaultUserSchema := models.DefaultUserSchema{}
-	testThing := reflect.ValueOf(&defaultUserSchema).Elem()
-	for i := 0; i < testThing.NumField(); i++ {
-		field := testThing.Type().Field(i)
-		var tempInterface []map[string]interface{}
-		tempInterface = append(tempInterface, map[string]interface{}{
-			"name":      field.Name,
-			"form_type": field.Tag.Get("form_type"),
-			"required":  field.Tag.Get("required"),
-			"pattern":   field.Tag.Get("pattern"),
+	var formErrors []string
+	schema, err := models.GenAdminSchema(db, "admin_schema")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
 		})
-		for key, value := range tempInterface {
-			schemaInterface = map[string]interface{}{
-				tempInterface[key]["name"].(string): value,
+	}
+	for key, value := range formData {
+		if schema[key] == nil {
+			defer delete(formData, key)
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": fmt.Sprintf("Invalid Field: %s", key),
+			})
+		}
+		if schema[key] != nil {
+			fmt.Println(schema[key])
+			if schema[key]["required"] == "true" {
+				if value == "" {
+					formErrors = append(formErrors, fmt.Sprintf("Empty Field: %s", key))
+				}
 			}
+			if schema[key]["pattern"] != "" {
+				if !regexp.MustCompile(schema[key]["pattern"]).MatchString(value) {
+					formData = map[string]string{
+						"failure": "true",
+					}
+					formErrors = append(formErrors, fmt.Sprintf("Invalid %s\n", key))
+				}
+			}
+
 		}
 	}
-	for key, value := range schemaInterface {
-		fmt.Printf("Key:%v\n", key)
-		fmt.Printf("Value:%v\n", value)
+	fmt.Println(formData)
+	if len(formErrors) > 0 || formData["failure"] == "true" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": formErrors,
+		})
 	}
-
-	// for key, value := range formData {
-	// 	fmt.Println(key)
-	// 	fmt.Println(value)
-	// }
-
-	fmt.Println(schemaInterface)
-
 	return c.JSON(
 		fiber.Map{
 			"message": "User Initialized",
@@ -293,18 +299,30 @@ func handleUserInitializatonStatus(c *fiber.Ctx, db *sql.DB, tn string) error {
 	}
 }
 
-func loginSchema(c *fiber.Ctx) error {
-	var userSchema models.DefaultUserSchema
-	var userSchemaInterface []interface{}
-	emptyStruct := reflect.ValueOf(&userSchema).Elem()
-	for i := 0; i < emptyStruct.NumField(); i++ {
-		field := emptyStruct.Type().Field(i)
-		userSchemaInterface = append(userSchemaInterface, map[string]interface{}{
-			"name":      field.Name,
-			"form_type": field.Tag.Get("form_type"),
-			"required":  field.Tag.Get("required"),
-			"pattern":   field.Tag.Get("pattern"),
+func loginSchema(db *sql.DB, c *fiber.Ctx) error {
+	schema, err := models.GenAdminSchema(db, "admin_schema")
+	var jsonSchema []map[string]interface{}
+	for key, value := range schema {
+		jsonSchema = append(jsonSchema, map[string]interface{}{
+			"name":   key,
+			"values": value,
 		})
 	}
-	return c.JSON(userSchemaInterface)
+	fmt.Println(jsonSchema)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+	if schema == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "schema is nil",
+		})
+	} else if len(schema) == 0 {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "schema is empty",
+		})
+	} else {
+		return c.JSON(jsonSchema)
+	}
 }

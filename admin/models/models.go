@@ -10,9 +10,78 @@ import (
 )
 
 type DefaultUserSchema struct {
-	Email    string `form_type:"email" required:"true" pattern:"^[a-zA-Z0-9.!#$%&'*+/=?^_ + \"\" + {|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]"`
-	Username string `form_type:"text" required:"true" pattern:"^[a-zA-Z0-9_]*$"`
+	Email    string `form_type:"email" required:"true" pattern:"[^\\s]+@[^\\s]+\\.\\w+"`
+	Username string `form_type:"text" required:"true" pattern:"^[a-zA-Z0-9]+$"`
 	Password string `form_type:"password" required:"true" pattern:"[^\\s]+"`
+}
+
+var SchemaFields = []string{
+	"form_type",
+	"required",
+	"pattern",
+}
+
+func GenAdminSchema(db *sql.DB, tableName string) (map[string]map[string]string, error) {
+	var schema = make(map[string]map[string]string)
+	var combinedStuff []string
+	for i := 0; i < len(SchemaFields); i++ {
+		combinedStuff = append(combinedStuff, SchemaFields[i])
+	}
+	firstQuery := fmt.Sprintf("SELECT %s FROM %s;", strings.Join(combinedStuff, ", "), tableName)
+	fmt.Println(firstQuery)
+	rows, err := db.Prepare(firstQuery)
+	if err != nil {
+		if regexp.MustCompile(`(?i)no such table`).MatchString(err.Error()) {
+			var combinedStuff []string
+			for i := 0; i < len(SchemaFields); i++ {
+				combinedStuff = append(combinedStuff, fmt.Sprintf("%s TEXT", SchemaFields[i]))
+			}
+			fmt.Println(combinedStuff)
+			finalQuery := fmt.Sprintf("CREATE TABLE %s (id INTEGER PRIMARY KEY AUTOINCREMENT, %s);", tableName, strings.Join(combinedStuff, ", "))
+			fmt.Println(finalQuery)
+			db.Exec(finalQuery)
+			return nil, fmt.Errorf("table %s does not exist", tableName)
+		}
+	}
+
+	defer rows.Close()
+	result, err := rows.Query()
+	if err != nil {
+		return nil, err
+	}
+	defer result.Close()
+	var tempMap interface{}
+	for result.Next() {
+		for i := 0; i < len(SchemaFields); i++ {
+			err := result.Scan(&tempMap)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	fmt.Println("tempMap: ", tempMap)
+	fmt.Println("schema: ", schema)
+	if schema == nil || len(schema) < 1 {
+		defaultSchema := reflect.TypeOf(&DefaultUserSchema{}).Elem()
+		for i := 0; i < defaultSchema.NumField(); i++ {
+			field := defaultSchema.Field(i)
+			schema[field.Name] = make(map[string]string)
+			for _, schemaField := range SchemaFields {
+				schema[field.Name][schemaField] = field.Tag.Get(schemaField)
+			}
+		}
+
+		prepQuery := fmt.Sprintf("INSERT INTO %s(%s) VALUES(%s);", tableName, strings.Join(SchemaFields, ", "), strings.Join(strings.Split(strings.Repeat("?", len(SchemaFields)), ""), ", "))
+		fmt.Println(prepQuery)
+		prepRows, err := db.Prepare(prepQuery)
+		if err != nil {
+			return nil, err
+		}
+		defer prepRows.Close()
+		prepRows.Exec(strings.Join(SchemaFields, ", "))
+		return schema, nil
+	}
+	return schema, nil
 }
 
 func InitDB() (*sql.DB, error) {
@@ -157,7 +226,7 @@ func QueryAdminUserDB(db *sql.DB, ut string, userStruct interface{}) (*sql.Rows,
 }
 
 func IsUserInitialized(db *sql.DB) bool {
-	rows, err := db.Query("SELECT * FROM users;")
+	rows, err := db.Query("SELECT * FROM users LIMIT 1;")
 	if err != nil {
 		return false
 	}

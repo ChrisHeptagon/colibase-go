@@ -3,7 +3,7 @@
   import ColibaseLogo from "$lib/assets/colibase_logo.svg"
   import { enhance } from "$app/forms";
   export let UserSchema: any;
-  let error: string | Record<string, unknown> | undefined;
+  let error: string | Record<string, unknown> | undefined | string[];
   export let Heading: string;
   let showError: boolean = false;
 
@@ -13,7 +13,7 @@
       `#${input.name}-error`
     ) as HTMLSpanElement;
     if (input.validity.valid === false) {
-      if (errorSpan) {        
+      if (errorSpan) {
       if (input.validity.valueMissing) {
         errorSpan.innerText = `Please enter a ${input.name}`;
       } else if (input.validity.patternMismatch) {
@@ -56,7 +56,7 @@
         error = "";
       } else if (result.type === "error") {
         error = result.error;
-      }
+        }
     }
   }
 }}>
@@ -65,26 +65,34 @@
   <fieldset>
     <legend>Enter your credentials</legend>
     {#if UserSchema}
-      {#each UserSchema as field}
-        <label for={field.name}>{field.name}</label>
+    {#each UserSchema as field}
+    <label for={field.name}>{field.name}</label>
         <input
-          type={field.name}
+          type={field.values.form_type ?? field.name}
           name={field.name}
           id={field.name}
-          required={field.required}
+          required={field.values.required ?? "false"}
           autocomplete="on"
-          aria-required={field.required}
+          aria-required={field.values.required ?? "false"}
           aria-label={field.name}
           aria-describedby={`${field.name}-error`}
           aria-invalid={showError}
-          pattern="{field.pattern}"
+          pattern={field.values.pattern ?? "[\\s\\S]"}
         />
         <span id={`${field.name}-error`} class="form-error"></span>
       {/each}
     {/if}
       <p class="error-item">
         {#if error}
-          {error}
+          {#if Array.isArray(error)}
+            {#each error as err}
+            <p>
+              {err}
+            </p>
+            {/each}
+          {:else}
+            {error}            
+          {/if}
         {/if}
       </p>
   </fieldset>
@@ -215,12 +223,15 @@
     color: rgb(0, 0, 0);
     text-transform: capitalize;
     margin: 10px;
-    height: 20px;
+    text-align: center;
     border-color: red;
     border-style: solid;
     border-radius: 5px;
     box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.75);
-    padding: 10px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    padding-left: 2.5px;
+    padding-right: 2.5px;
     font-size: 14px;
     transition: all 0.5s ease-in-out;
   }
