@@ -11,9 +11,9 @@ import (
 )
 
 type DefaultUserSchema struct {
-	Email    string `form_type:"email" required:"true" pattern:"[^\\s]+@[^\\s]+\\.\\w+"`
+	Email    string `form_type:"email" required:"true" pattern:"^[^\\s]+@[^\\s]+\\.\\w+$"`
 	Username string `form_type:"text" required:"true" pattern:"^[a-zA-Z0-9]+$"`
-	Password string `form_type:"password" required:"true" pattern:"[^\\s]+"`
+	Password string `form_type:"password" required:"true" pattern:"^[^\\s]+$"`
 }
 
 var SchemaFields = []string{
@@ -27,31 +27,30 @@ func GenAdminSchema(db *sql.DB, tableName string) (map[string]map[string]string,
 	makeQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INTEGER PRIMARY KEY AUTOINCREMENT, schema BLOB UNIQUE);", tableName)
 	db.Exec(makeQuery)
 	firstQuery := fmt.Sprintf("SELECT schema FROM %s;", tableName)
-	rows, err := db.Prepare(firstQuery)
+	fmt.Println(firstQuery)
+	rows, err := db.Query(firstQuery)
 	if err != nil {
 		return nil, err
 	}
-
 	defer rows.Close()
-	result, err := rows.Query()
-	if err != nil {
-		return nil, err
-	}
-	defer result.Close()
+
 	var schemaByte []byte
-	for result.Next() {
+	for rows.Next() {
 		for i := 0; i < len(SchemaFields); i++ {
-			err := result.Scan(&schemaByte)
+			err = rows.Scan(&schemaByte)
 			if err != nil {
 				return nil, err
 			}
 		}
+
 	}
-	err = json.Unmarshal(schemaByte, &schema)
-	if err != nil {
-		return nil, err
-	}
-	if schema == nil || len(schema) < 1 {
+
+	if len(schemaByte) > 1 || schemaByte != nil {
+		err = json.Unmarshal(schemaByte, &schema)
+		if err != nil {
+			return nil, err
+		}
+	} else {
 		defaultSchema := reflect.TypeOf(&DefaultUserSchema{}).Elem()
 		for i := 0; i < defaultSchema.NumField(); i++ {
 			field := defaultSchema.Field(i)
@@ -60,7 +59,6 @@ func GenAdminSchema(db *sql.DB, tableName string) (map[string]map[string]string,
 				schema[field.Name][schemaField] = field.Tag.Get(schemaField)
 			}
 		}
-		return schema, nil
 	}
 	return schema, nil
 }
@@ -76,7 +74,7 @@ func InitDB() (*sql.DB, error) {
 	return db, nil
 }
 
-func MapToStruct(mapping map[string]interface{}) (interface{}, error) {
+func MapToStruct[T any](mapping map[string]T) (interface{}, error) {
 	var fields []reflect.StructField
 	for key, value := range mapping {
 		fieldType := reflect.TypeOf(value)

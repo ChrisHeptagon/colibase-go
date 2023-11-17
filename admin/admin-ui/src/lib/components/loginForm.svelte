@@ -2,6 +2,7 @@
 <script lang="ts">
   import ColibaseLogo from "$lib/assets/colibase_logo.svg"
   import { enhance } from "$app/forms";
+  import { json } from "@sveltejs/kit";
   export let UserSchema: any;
   let error: string | Record<string, unknown> | undefined | string[];
   export let Heading: string;
@@ -60,7 +61,8 @@
     }
   }
 }}>
-  <h1>{Heading}</h1>
+  <h1
+  >{Heading}</h1>
   <img class="logo" src="{ColibaseLogo}" alt="logo" />
   <fieldset>
     <legend>Enter your credentials</legend>
@@ -68,16 +70,17 @@
     {#each UserSchema as field}
     <label for={field.name}>{field.name}</label>
         <input
-          type={field.values.form_type ?? field.name}
+          on:change={handleInputChange}
+          type={field.form_type ?? field.name ?? "text"}
           name={field.name}
           id={field.name}
-          required={field.values.required ?? "false"}
+          required={field.required ?? "false"}
           autocomplete="on"
-          aria-required={field.values.required ?? "false"}
+          aria-required={field.required ?? "false"}
           aria-label={field.name}
           aria-describedby={`${field.name}-error`}
           aria-invalid={showError}
-          pattern={field.values.pattern ?? "[\\s\\S]"}
+          pattern={field.pattern ?? "[\\s\\S]"}
         />
         <span id={`${field.name}-error`} class="form-error"></span>
       {/each}
@@ -85,11 +88,9 @@
       <p class="error-item">
         {#if error}
           {#if Array.isArray(error)}
-            {#each error as err}
-            <p>
-              {err}
-            </p>
-            {/each}
+            {error.join(", ")}
+          {:else if typeof error === "string"}
+            {error}
           {:else}
             {error}            
           {/if}
@@ -221,17 +222,13 @@
   }
   .error-item:not(:empty) {
     color: rgb(0, 0, 0);
-    text-transform: capitalize;
     margin: 10px;
     text-align: center;
     border-color: red;
     border-style: solid;
     border-radius: 5px;
     box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.75);
-    padding-top: 5px;
-    padding-bottom: 5px;
-    padding-left: 2.5px;
-    padding-right: 2.5px;
+    padding: 5px;
     font-size: 14px;
     transition: all 0.5s ease-in-out;
   }

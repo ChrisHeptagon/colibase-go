@@ -5,13 +5,11 @@ let rootURL: string;
 rootURL = "http://127.0.0.1:6700";
 
 
-
 export const load: PageServerLoad = async () => {
-  let UserSchema: any;
+  let UserSchema: any
   const response = await fetch(`${rootURL}/api/login-schema`);
   const json = await response.json();
   UserSchema = json;
-  console.log(UserSchema);
   return { UserSchema };
 };
 

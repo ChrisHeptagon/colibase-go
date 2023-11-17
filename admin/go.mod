@@ -16,6 +16,7 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.0.5 // indirect
+	github.com/elliotchance/orderedmap/v2 v2.2.0
 	github.com/gofiber/template/html/v2 v2.0.5
 	github.com/google/uuid v1.3.1 // indirect
 	github.com/klauspost/compress v1.17.0 // indirect
