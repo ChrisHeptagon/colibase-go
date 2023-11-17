@@ -14,7 +14,7 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions = {
-  action: async ({ request }) => {
+  action: async ({ request, cookies }) => {
     const formData = await request.formData();
     if (formData) {
       const finalForm = Object.fromEntries(formData.entries());
@@ -34,7 +34,7 @@ export const actions = {
         } else {
           return fail(400, json.error);
         }
-      }
+      } 
     }
   },
 } satisfies Actions;

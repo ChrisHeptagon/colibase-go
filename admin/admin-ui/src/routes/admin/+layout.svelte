@@ -1,6 +1,6 @@
 <script lang="ts">
 export const ssr = true
-import ColibaseLogo from "$lib/assets/favicon.ico";
+import ColibaseLogo from "$lib/assets/favicon.ico?raw";
 </script>
 
 <slot />

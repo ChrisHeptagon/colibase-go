@@ -2,7 +2,6 @@
 <script lang="ts">
   import ColibaseLogo from "$lib/assets/colibase_logo.svg"
   import { enhance } from "$app/forms";
-  import { json } from "@sveltejs/kit";
   export let UserSchema: any;
   let error: string | Record<string, unknown> | undefined | string[];
   export let Heading: string;
@@ -223,22 +222,22 @@
   .error-item:not(:empty) {
     color: rgb(0, 0, 0);
     margin: 10px;
+    height: fit-content;
+    width: fit-content;
     text-align: center;
     border-color: red;
     border-style: solid;
     border-radius: 5px;
-    box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.75);
     padding: 5px;
     font-size: 14px;
     transition: all 0.5s ease-in-out;
   }
   .error-item:empty {
-    transition: all 0.5s ease-in-out;
-    color: transparent;
     margin: 0;
     padding: 0;
     height: 0;
     width: 0;
+    transition: all 0.5s ease-in-out;
   }
 
 

@@ -14,7 +14,7 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions = {
-    action: async ({request}) => {
+    action: async ({request, cookies}) => {
         const formData = await request.formData();
         if (formData) {
      const finalForm = Object.fromEntries(formData.entries());
@@ -27,10 +27,16 @@ export const actions = {
         }
     )    
     const json = await fetchResult.json();
-    console.log(json);
     if (json.error) {
         return fail(400, json.error);
-    }
+    } else {
+        for (const [key, value] of Object.entries(finalForm)) {
+            console.log(key, value);
+          if (new RegExp(/(email)/i).test(key)) {
+            cookies.set("colibase", String(value));
+          }
+        }
+      }
         }}
 } satisfies Actions;
 
