@@ -45,7 +45,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Error getting working directory: %v", err)
 		}
-		cmd := exec.Command("node", fmt.Sprintf("%s/admin-ui/build/index.js", wd))
+		cmd := exec.Command("node", fmt.Sprintf("%s/admin-ui/dist/server/entry.mjs", wd))
 		cmd.Stdout = os.Stdout
 		cmd.Env = os.Environ()
 		err = cmd.Start()

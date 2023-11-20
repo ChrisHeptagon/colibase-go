@@ -8,18 +8,80 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type DefaultUserSchema struct {
-	Email    string `form_type:"email" required:"true" pattern:"^[^\\s]+@[^\\s]+\\.\\w+$"`
-	Username string `form_type:"text" required:"true" pattern:"^[a-zA-Z0-9]+$"`
-	Password string `form_type:"password" required:"true" pattern:"^[^\\s]+$"`
+	Email    string `form_type:"email" required:"true" pattern:"^[^\\s]+@[^\\s]+\\.\\w+$" order:"1"`
+	Username string `form_type:"text" required:"true" pattern:"^[a-zA-Z0-9]+$" order:"2"`
+	Password string `form_type:"password" required:"true" pattern:"^[^\\s]+$" order:"3"`
 }
 
 var SchemaFields = []string{
 	"form_type",
 	"required",
 	"pattern",
+	"order",
+}
+
+func DeleteCookie(db *sql.DB, tableName string, cookieValue string) error {
+	result, err := db.Prepare(fmt.Sprintf("DELETE FROM %s WHERE cookie = ?;", tableName))
+	if err != nil {
+		return err
+	}
+	defer result.Close()
+	_, err = result.Exec(cookieValue)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func CheckCookie(db *sql.DB, tableName string, cookieValue string) error {
+	makeResult, err := db.Prepare(fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INTEGER PRIMARY KEY AUTOINCREMENT, cookie VARCHAR(255) UNIQUE NOT NULL);", tableName))
+	if err != nil {
+		return err
+	}
+	defer makeResult.Close()
+	_, err = makeResult.Exec()
+	if err != nil {
+		return err
+	}
+	result, err := db.Prepare(fmt.Sprintf("SELECT cookie FROM %s WHERE cookie = ? LIMIT 1;", tableName))
+	if err != nil {
+		return err
+	}
+	defer result.Close()
+	rows, err := result.Query(cookieValue)
+	if err != nil {
+		return err
+	}
+	if rows.Err() == sql.ErrNoRows {
+		return fmt.Errorf("invalid cookie")
+	}
+	defer rows.Close()
+	var cookie string
+	for rows.Next() {
+		err = rows.Scan(&cookie)
+		if err != nil {
+			return err
+		}
+	}
+	fmt.Println("Cookie: ", cookie)
+	fmt.Println("Cookie Value: ", cookieValue)
+	if cookie == "" {
+		result, err := db.Prepare(fmt.Sprintf("INSERT INTO %s(cookie) VALUES(?);", tableName))
+		if err != nil {
+			return err
+		}
+		defer result.Close()
+		_, err = result.Exec(cookieValue)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func GenAdminSchema(db *sql.DB, tableName string) (map[string]map[string]string, error) {
@@ -206,7 +268,7 @@ func QueryAdminUserDB(db *sql.DB, ut string, userStruct interface{}) (*sql.Rows,
 }
 
 func IsUserInitialized(db *sql.DB) bool {
-	rows, err := db.Query("SELECT * FROM users LIMIT 1;")
+	rows, err := db.Query("SELECT id FROM users LIMIT 1;")
 	if err != nil {
 		return false
 	}

@@ -1,0 +1,109 @@
+---
+import StandardLayoutWithSidebar from "../../layouts/standardLayoutWithSidebar.astro"
+const memoryMap = new Array();
+let memoryJson: any;
+
+
+
+if (Astro.request.headers.get("Content-Type") === "application/json") {
+    const res = await fetch("http:///0.0.0.0:6700/api/memory-stats").catch(
+      (err) => {
+        console.log(err);
+      }
+    );
+    if (!res) {
+      return;
+    }
+    memoryJson = await res?.json();
+    if (!memoryJson) {
+      return;
+    }
+    const memory = memoryJson.stats
+    if (!memory) {
+      return;
+    }
+    memory.map((item: Object) => {
+      for (const [key, value] of Object.entries(item)) {
+        memoryMap.push({ [key]: value });
+      }
+    });
+    if (!memoryMap) {
+      return;
+    }
+  return new Response(JSON.stringify(memoryMap), {
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+
+---
+
+<style>
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+  input {
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+  }
+  button {
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    cursor: pointer;
+  }
+  button:hover {
+    background-color: #a98484;
+  }
+  
+</style>
+
+<script>
+    import * as d3 from "d3"
+    function humanFileSize(size: number) {
+    var i = size == 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
+    return (
+      (size / Math.pow(1024, i)).toFixed(2) +
+      " " +
+      ["B", "kB", "MB", "GB", "TB"][i]
+    );
+    
+}
+
+  
+
+    setInterval(async () => {
+    const res = await fetch(window.location.href, {
+      headers: { "Content-Type": "application/json" },
+    })
+    if (!res) {
+      return;
+    }
+    const stats = JSON.parse(await res?.text())
+    if (!stats) {
+      return;
+    }
+    const memoryMap = stats.map((item: any) => {
+      for (const [key, value] of Object.entries(item)) {
+        return `<div><span>${key.toUpperCase()}</span>: <span>${humanFileSize(value as number)}</span></div>`;
+      }
+    });
+
+    const memoryData = document.getElementById("memory-data")
+    if (memoryData) {
+        memoryData.innerHTML = memoryMap.join("");
+    }
+    }, 1000);
+</script>
+
+<StandardLayoutWithSidebar title="Dashboard">
+  <h1>Dashboard</h1>
+    <div id="memory-data"></div>
+</StandardLayoutWithSidebar>

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"time"
 
 	"encoding/json"
 
@@ -14,28 +13,17 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/session"
-	"github.com/gofiber/storage/sqlite3/v2"
+	"github.com/google/uuid"
 )
 
 func MainServer(db *sql.DB) {
 	app := fiber.New()
-	storageDB := sqlite3.New(sqlite3.Config{
-		Database: "./db/sessions.db",
-		Table:    "sessions",
-	})
-	store := session.New(
-		session.Config{
-			Expiration: 24 * 7 * time.Hour,
-			Storage:    storageDB,
-			KeyLookup:  "cookie:colibase",
-		})
 	app.Use(compress.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 	}))
 	app.Post("/api/login", func(c *fiber.Ctx) error {
-		return handleUserLogin(c, db, store)
+		return handleUserLogin(c, db)
 	})
 	app.Get("/api/login-schema", func(c *fiber.Ctx) error {
 		return loginSchema(db, c)
@@ -47,20 +35,92 @@ func MainServer(db *sql.DB) {
 		return handleUserInitializaton(c, db)
 	})
 
+	app.Post("/api/logout", func(c *fiber.Ctx) error {
+		return handleUserLogout(c, db)
+	})
+
+	app.Post("/api/auth-check", func(c *fiber.Ctx) error {
+		return authCheck(c, db)
+	})
+
+	app.Get("/api/memory-stats", func(c *fiber.Ctx) error {
+		return handleMemoryStats(c)
+	})
+
 	app.Listen(":6700")
 }
 
-func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
-	var formData map[string]string
-	if err := c.BodyParser(&formData); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+func handleMemoryStats(c *fiber.Ctx) error {
+	stats, err := utils.GetSysStats()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+	return c.JSON(
+		fiber.Map{
+			"stats":  stats,
+			"status": fiber.StatusOK,
+		},
+	)
+}
+
+func handleUserLogout(c *fiber.Ctx, db *sql.DB) error {
+	var cookieMap map[string]interface{}
+	err := c.BodyParser(&cookieMap)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+	fmt.Println("Logout Cookie: ", cookieMap)
+	err = models.DeleteCookie(db, "sessions", cookieMap["cookie"].(map[string]interface{})["value"].(string))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
 
-	if len(formData) == 0 {
+	return c.JSON(
+		fiber.Map{
+			"message": "Logged Out",
+			"status":  fiber.StatusOK,
+		},
+	)
+}
+
+func authCheck(c *fiber.Ctx, db *sql.DB) error {
+	var cookieMap map[string]interface{}
+	err := c.BodyParser(&cookieMap)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+	fmt.Println(cookieMap)
+
+	err = models.CheckCookie(db, "sessions", cookieMap["cookie"].(map[string]interface{})["value"].(string))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(
+		fiber.Map{
+			"message": "Authorized",
+			"value":   cookieMap["cookie"].(map[string]interface{})["value"].(string),
+			"status":  fiber.StatusOK,
+		},
+	)
+}
+
+func handleUserLogin(c *fiber.Ctx, db *sql.DB) error {
+	var formData map[string]string
+	var cookieValue string
+	if err := c.BodyParser(&formData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "empty field(s)",
+			"error": err.Error(),
 		})
 	}
 	var formErrors []string
@@ -95,14 +155,15 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
 					formErrors = append(formErrors, fmt.Sprintf("Invalid %s", key))
 				}
 			}
-
 		}
 
 	}
-
 	if len(formErrors) > 0 {
+		for key, value := range formErrors {
+			fmt.Printf("Error #%d: %s\n", key+1, value)
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": formErrors,
+			"error": "Error(s) in form, \nplease check your form and try again",
 		})
 	}
 
@@ -170,9 +231,14 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
 			}
 		}
 	}
+
+	// Convert Form Data to String
+	cookieValue = string(uuid.New().String())
+
 	return c.JSON(
 		fiber.Map{
 			"message": "Login Successful",
+			"value":   cookieValue,
 			"status":  fiber.StatusOK,
 		},
 	)
@@ -180,14 +246,10 @@ func handleUserLogin(c *fiber.Ctx, db *sql.DB, store *session.Store) error {
 
 func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 	var formData map[string]string
+	var cookieValue string
 	if err := c.BodyParser(&formData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
-		})
-	}
-	if len(formData) == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "empty field(s)",
 		})
 	}
 	var formErrors []string
@@ -198,8 +260,13 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 		})
 	}
 	for key, value := range formData {
+		if value == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "empty field(s)",
+			})
+		}
 		if schema[key] == nil {
-			defer delete(formData, key)
+			delete(formData, key)
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": fmt.Sprintf("Invalid Field: %s", key),
 			})
@@ -230,8 +297,11 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 		}
 	}
 	if len(formErrors) > 0 || formData["failure"] == "true" {
+		for key, value := range formErrors {
+			fmt.Printf("Error #%d: %s\n", key+1, value)
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": formErrors,
+			"error": "Error(s) in form, \nplease check your form and try again",
 		})
 	}
 	structFormData, err := models.MapToStruct(formData)
@@ -256,6 +326,7 @@ func handleUserInitializaton(c *fiber.Ctx, db *sql.DB) error {
 	return c.JSON(
 		fiber.Map{
 			"message": "User Initialized",
+			"value":   cookieValue,
 			"status":  fiber.StatusOK,
 		},
 	)
@@ -281,7 +352,7 @@ func loginSchema(db *sql.DB, c *fiber.Ctx) error {
 		jsonSchema = append(jsonSchema, modVal)
 	}
 	sort.Slice(jsonSchema, func(i, j int) bool {
-		return jsonSchema[i]["name"] < jsonSchema[j]["name"]
+		return jsonSchema[i]["order"] < jsonSchema[j]["order"]
 	})
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -304,6 +375,7 @@ func loginSchema(db *sql.DB, c *fiber.Ctx) error {
 			})
 		}
 		fmt.Println(string(jsonTest))
+
 		return c.JSON(jsonSchema)
 	}
 }
