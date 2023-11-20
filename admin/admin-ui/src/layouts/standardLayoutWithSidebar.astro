@@ -39,14 +39,15 @@ const elements = [
             value?.path === link.getAttribute("href") &&
             value.path !== "/entry/logout"
           ) {
-            window.history.pushState({}, "", value.path);
             if (value.path !== "/entry/logout") {
               fetch(value.path).then((response) => {
                 response.text().then((text) => {
                   const parser = new DOMParser();
                   const doc = parser.parseFromString(text, "text/html");
                   const newContent = doc.querySelector("section#content");
+                  const newScript = doc.scripts
                   const oldContent = document.querySelector("section#content");
+                  const oldScript = document.scripts
                   if (!newContent || !oldContent) {
                     window.location.reload();
                     window.location.href = value.path;
@@ -56,9 +57,19 @@ const elements = [
                     if (newContent.innerHTML === "") {
                       window.location.reload();
                       window.location.href = value.path;
-                    }
-
+                    } else if (newContent.innerHTML !== oldContent.innerHTML) {
                     oldContent.replaceWith(newContent);
+                    for (let tempScript of oldScript) {
+                      tempScript.remove();
+                    }
+                    for (let tempScript of newScript) {
+                      const script = document.createElement("script");
+                      script.type = tempScript.type;
+                      if (tempScript.src) script.src = tempScript.src;
+                      if (tempScript.innerHTML) script.innerHTML = tempScript.innerHTML;
+                      document.head.appendChild(script);
+                    }
+                    }
                   }
                 });
               });

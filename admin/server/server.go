@@ -43,15 +43,15 @@ func MainServer(db *sql.DB) {
 		return authCheck(c, db)
 	})
 
-	app.Get("/api/memory-stats", func(c *fiber.Ctx) error {
-		return handleMemoryStats(c)
+	app.Get("/api/server-stats", func(c *fiber.Ctx) error {
+		return handleStats(c)
 	})
 
 	app.Listen(":6700")
 }
 
-func handleMemoryStats(c *fiber.Ctx) error {
-	stats, err := utils.GetSysStats()
+func handleStats(c *fiber.Ctx) error {
+	stats, err := utils.GetStats()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),

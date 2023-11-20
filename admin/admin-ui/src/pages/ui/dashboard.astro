@@ -1,41 +1,44 @@
 ---
-import StandardLayoutWithSidebar from "../../layouts/standardLayoutWithSidebar.astro"
+import StandardLayoutWithSidebar from "../../layouts/standardLayoutWithSidebar.astro";
 const memoryMap = new Array();
 let memoryJson: any;
 
-
-
-if (Astro.request.headers.get("Content-Type") === "application/json") {
-    const res = await fetch("http:///0.0.0.0:6700/api/memory-stats").catch(
-      (err) => {
-        console.log(err);
-      }
-    );
-    if (!res) {
+if (
+  Astro.request.headers.get("Accept") === "application/json" &&
+  Astro.request.headers.get("X-Forwarded-For") === "astro"
+) {
+  const res = await fetch("http:///0.0.0.0:6700/api/server-stats").catch(
+    (err) => {
+      console.log(err);
       return;
     }
-    memoryJson = await res?.json();
-    if (!memoryJson) {
-      return;
+  );
+  if (!res) {
+    return;
+  }
+  memoryJson = await res?.json();
+  if (!memoryJson) {
+    return;
+  }
+  const memory = memoryJson.stats;
+  console.log(memory);
+  if (!memory) {
+    return;
+  }
+  memory.map((item: Object) => {
+    for (const [key, value] of Object.entries(item)) {
+      memoryMap.push({ [key]: value });
     }
-    const memory = memoryJson.stats
-    if (!memory) {
-      return;
-    }
-    memory.map((item: Object) => {
-      for (const [key, value] of Object.entries(item)) {
-        memoryMap.push({ [key]: value });
-      }
-    });
-    if (!memoryMap) {
-      return;
-    }
+  });
+  if (!memoryMap) {
+    return;
+  }
   return new Response(JSON.stringify(memoryMap), {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+    },
   });
 }
-
-
 ---
 
 <style>
@@ -62,48 +65,100 @@ if (Astro.request.headers.get("Content-Type") === "application/json") {
   button:hover {
     background-color: #a98484;
   }
-  
 </style>
 
 <script>
-    import * as d3 from "d3"
-    function humanFileSize(size: number) {
+  import { $router } from "../../stores/router.ts";
+
+  function humanFileSize(stringValue: string) {
+    console.log(stringValue)
+    const size =  parseInt(stringValue)
+    console.log(size)
     var i = size == 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
     return (
       (size / Math.pow(1024, i)).toFixed(2) +
       " " +
       ["B", "kB", "MB", "GB", "TB"][i]
     );
-    
-}
+  }
 
-  
-
-    setInterval(async () => {
+  function parseJSON(jsonString: string) {
+    try {
+      const parsed = JSON.parse(jsonString);
+      if (parsed && typeof parsed === "object") {
+        return parsed;
+      }
+    } catch (e) {
+      return e;
+    }
+  }
+  const interval = setInterval(async () => {
     const res = await fetch(window.location.href, {
-      headers: { "Content-Type": "application/json" },
-    })
+      headers: {
+        Accept: "application/json",
+        "X-Forwarded-For": "astro",
+      },
+    });
+
     if (!res) {
       return;
     }
-    const stats = JSON.parse(await res?.text())
-    if (!stats) {
+    const stat = await res?.text();
+    let stats;
+
+    if (parseJSON(stat)) {
+      stats = parseJSON(stat);
+    } else if (!parseJSON(stat)) {
+      console.log("not json");
       return;
     }
-    const memoryMap = stats.map((item: any) => {
-      for (const [key, value] of Object.entries(item)) {
-        return `<div><span>${key.toUpperCase()}</span>: <span>${humanFileSize(value as number)}</span></div>`;
-      }
-    });
 
-    const memoryData = document.getElementById("memory-data")
-    if (memoryData) {
-        memoryData.innerHTML = memoryMap.join("");
+    if (!stats || stats === undefined) {
+      return;
     }
-    }, 1000);
+
+    if (stats.map === undefined) {
+      return;
+    }
+
+    const random = stats.map(
+      (item: any) => {for (const object of Object.entries(item)) {
+        const key = object[0];
+        const value = object[1] as Object;
+        let temp = []
+        for (const [key, tempval] of Object.entries(value)) {
+          temp.push(Object.entries(tempval).map((subitem) => {
+            const key = subitem[0];
+            const value = subitem[1];
+            return `<div><strong>${key}</strong>: ${value}</div>`
+          })
+          )
+        }
+        if (key === "memory") {
+        return `<div><strong>${key}</strong>: ${temp.map((n) => {
+          n.forEach((test) => {
+            humanFileSize(test)
+         })
+        }}</div></br>`;
+        } else {
+          return `<div><strong>${key}</strong>: ${temp.join("")}</div></br>`;
+        }
+      }
+    }
+    );
+    if (!random) {
+      clearInterval(interval);
+      return;
+    }
+    const memoryData = document.getElementById("memory-data");
+    if (memoryData) {
+      memoryData.innerHTML = random.join("");
+    }
+  }, 1000);
+
 </script>
 
 <StandardLayoutWithSidebar title="Dashboard">
   <h1>Dashboard</h1>
-    <div id="memory-data"></div>
+  <div id="memory-data"></div>
 </StandardLayoutWithSidebar>
