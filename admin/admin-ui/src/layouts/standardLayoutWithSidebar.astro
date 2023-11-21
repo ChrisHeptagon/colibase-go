@@ -47,17 +47,14 @@ const elements = [
         for (const link of document.querySelectorAll("a")) {
           link.addEventListener("mouseover", async () => {
               console.log(link.href);
-              await fetch(link.href)
-                .then((response) => response.text())
-                .then((text) => {
-                  spaRouting(text);
-                });
-          })
+              if (link.href.includes("entry")) return;
+              if (link.href.includes("logout")) return;
+          });
           link.addEventListener("click", async (event) => {
-            event.preventDefault();
             await fetch(link.href)
               .then((response) => response.text())
               .then((text) => {
+                spaRouting(text);
                               });
           });
           function spaRouting (text: string) {

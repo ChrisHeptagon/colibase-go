@@ -12,7 +12,6 @@ export const $router = createRouter({
 
 export const $prefetchStore = atom<any[]>([]);
 
-export function addPrefetch(
 
 export const $pageDataStore = atom<any[]>([]);
 
