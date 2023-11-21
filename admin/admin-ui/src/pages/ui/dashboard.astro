@@ -4,7 +4,9 @@ const memoryMap = new Array();
 let memoryJson: any;
 
 if (
-  Astro.request.headers.get("Accept") === "application/json" &&
+  Astro.request.headers.get("Accept")?.includes("application/json") &&
+  Astro.request.headers.get("Accept")?.includes("text/html") !== true &&
+  Astro.request.headers.get("WE-DO-NOT-ACCEPT") === "text/html" &&
   Astro.request.headers.get("X-Forwarded-For") === "astro"
 ) {
   const res = await fetch("http:///0.0.0.0:6700/api/server-stats").catch(
@@ -68,15 +70,12 @@ if (
 </style>
 
 <script>
-  import { $router } from "../../stores/router.ts";
+import { $router } from "../../stores/router";
 
-  function humanFileSize(stringValue: string) {
-    console.log(stringValue)
-    const size =  parseInt(stringValue)
-    console.log(size)
-    var i = size == 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
+  function humanFileSize(value: number) {
+    var i = value == 0 ? 0 : Math.floor(Math.log(value) / Math.log(1024));
     return (
-      (size / Math.pow(1024, i)).toFixed(2) +
+      (value / Math.pow(1024, i)).toFixed(2) +
       " " +
       ["B", "kB", "MB", "GB", "TB"][i]
     );
@@ -92,15 +91,24 @@ if (
       return e;
     }
   }
-  const interval = setInterval(async () => {
+
+  $router.subscribe((val) => {
+    if (val?.route === "dashboard") {
+   let timer = setInterval(async () => {
+    if (!window.location.href.includes("dashboard")) {
+      clearInterval(timer);
+      return;
+    }
     const res = await fetch(window.location.href, {
       headers: {
         Accept: "application/json",
-        "X-Forwarded-For": "astro",
+        "X-Forwarded-For" : "astro",
+        "WE-DO-NOT-ACCEPT": "text/html",
       },
     });
 
     if (!res) {
+      clearInterval(timer);
       return;
     }
     const stat = await res?.text();
@@ -109,15 +117,17 @@ if (
     if (parseJSON(stat)) {
       stats = parseJSON(stat);
     } else if (!parseJSON(stat)) {
-      console.log("not json");
+      clearInterval(timer);
       return;
     }
 
     if (!stats || stats === undefined) {
+      clearInterval(timer);
       return;
     }
 
     if (stats.map === undefined) {
+      clearInterval(timer);
       return;
     }
 
@@ -126,7 +136,19 @@ if (
         const key = object[0];
         const value = object[1] as Object;
         let temp = []
-        for (const [key, tempval] of Object.entries(value)) {
+
+        if (key === "memory") {
+          for (const [key, tempval] of Object.entries(value)) {
+            temp.push(Object.entries(tempval).map((subitem) => {
+              const key = subitem[0];
+              const secvalue = subitem[1];
+              return `<div><strong>${key}</strong>: ${humanFileSize(parseInt(secvalue as string))}</div>`
+            })
+            )
+          }
+          return `<div><strong>${key}</strong>: ${temp.join("")}</div></br>`;
+        } else {
+                  for (const [key, tempval] of Object.entries(value)) {
           temp.push(Object.entries(tempval).map((subitem) => {
             const key = subitem[0];
             const value = subitem[1];
@@ -134,20 +156,13 @@ if (
           })
           )
         }
-        if (key === "memory") {
-        return `<div><strong>${key}</strong>: ${temp.map((n) => {
-          n.forEach((test) => {
-            humanFileSize(test)
-         })
-        }}</div></br>`;
-        } else {
           return `<div><strong>${key}</strong>: ${temp.join("")}</div></br>`;
         }
       }
     }
     );
     if (!random) {
-      clearInterval(interval);
+      clearInterval(timer);
       return;
     }
     const memoryData = document.getElementById("memory-data");
@@ -155,6 +170,9 @@ if (
       memoryData.innerHTML = random.join("");
     }
   }, 1000);
+  
+  }
+  });
 
 </script>
 

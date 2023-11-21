@@ -30,52 +30,86 @@ const elements = [
   </head>
 
   <script>
-    import { $router } from "../stores/router.ts";
+    import { $router, addPageData, getPageData, updatePageData } from "../stores/router.ts";
     if (typeof window !== "undefined") {
-      $router.subscribe((value) => {
-        console.log(value);
+      $router.subscribe(async (value) => {
+        addPageData({
+        title: document.title,
+        path: value?.path,
+        content: document.querySelector("section#content")?.innerHTML,
+        script: document.scripts,
+      });
+      updatePageData(document.title, {
+        path: value?.path,
+        content: document.querySelector("section#content")?.innerHTML,
+        script: document.scripts,
+      });
         for (const link of document.querySelectorAll("a")) {
+          link.addEventListener("mouseover", async () => {
+              console.log(link.href);
+              await fetch(link.href)
+                .then((response) => response.text())
+                .then((text) => {
+                  spaRouting(text);
+                });
+          })
+          link.addEventListener("click", async (event) => {
+            event.preventDefault();
+            await fetch(link.href)
+              .then((response) => response.text())
+              .then((text) => {
+                              });
+          });
+          function spaRouting (text: string) {
           if (
-            value?.path === link.getAttribute("href") &&
-            value.path !== "/entry/logout"
+            value && value.path === link.getAttribute("href") &&
+            value.route !== "logout"
+
           ) {
             if (value.path !== "/entry/logout") {
-              fetch(value.path).then((response) => {
-                response.text().then((text) => {
                   const parser = new DOMParser();
                   const doc = parser.parseFromString(text, "text/html");
                   const newContent = doc.querySelector("section#content");
-                  const newScript = doc.scripts
+                  const newScript = doc.querySelectorAll("script");
                   const oldContent = document.querySelector("section#content");
-                  const oldScript = document.scripts
-                  if (!newContent || !oldContent) {
-                    window.location.reload();
-                    window.location.href = value.path;
-                  } else if (newContent.innerHTML === oldContent.innerHTML)
+                  const oldScript = document.head.querySelectorAll("script");
+                  if (!newContent && !oldContent) {
                     return;
-                  if (newContent && oldContent) {
-                    if (newContent.innerHTML === "") {
-                      window.location.reload();
-                      window.location.href = value.path;
-                    } else if (newContent.innerHTML !== oldContent.innerHTML) {
-                    oldContent.replaceWith(newContent);
-                    for (let tempScript of oldScript) {
-                      tempScript.remove();
+                  }  else if (newContent && oldContent) {
+                    if (newContent.innerHTML === oldContent.innerHTML) {
+                      return;
                     }
-                    for (let tempScript of newScript) {
-                      const script = document.createElement("script");
-                      script.type = tempScript.type;
-                      if (tempScript.src) script.src = tempScript.src;
-                      if (tempScript.innerHTML) script.innerHTML = tempScript.innerHTML;
-                      document.head.appendChild(script);
-                    }
-                    }
+                      if (newContent.innerHTML !== oldContent.innerHTML) {
+                        addPageData({
+                          title: doc.title,
+                          path: value.path,
+                          script: newScript,
+                          content: newContent.innerHTML,
+                        });
+                        const item = getPageData(doc.title);
+                        if (!item) return;
+                        document.title = item.title;
+                        oldContent.innerHTML = item.content;
+                        oldScript.forEach((script) => {
+                          script.remove();
+                        });
+                        for (let tempScript of item.script) {
+                          if (tempScript === undefined) return;
+                          for (const script of newScript) {
+                            if (script === tempScript) {
+                              console.log("script already exists");
+                              console.log(script);
+                              tempScript.remove();
+                            }
+                          }
+                          if (tempScript === undefined) return;
+                          document.head.appendChild(tempScript);
+                        }
+                      }
                   }
-                });
-              });
+                }
               link.style.backgroundColor = "rgba(255, 255, 255, 0.25)";
-            }
-          } else if (value?.path === "/entry/logout") {
+            }  if (value?.path === "/entry/logout") {
             window.history.replaceState({}, "", value.path);
             window.location.reload();
             window.location.href = value.path;
@@ -83,36 +117,785 @@ const elements = [
             link.style.backgroundColor = "transparent";
           }
         }
-      });
+      }
+    });
     }
+
+
   </script>
 
-  <style lang="scss">
-    body,
-    html {
-      min-height: 100vh;
-      margin: 0 auto;
-      padding: 0;
-      
-    }
-    main {
-      display: flex;
-      position: relative;
-        flex-direction: row;
-      width: 100%;
-        min-height: inherit;
-      background-color: #f5f5f5;
-      section#sidebar {
-        aside#sidebar {
-          top: 0;
-          flex: 1;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ lex: 1;
           position: sticky;
           left: 0;
           bottom: 0;
           padding: 1rem;
           height: calc(100vh - 2rem);
           background-image: linear-gradient(to bottom, #183e3a, #dafaa4);
-
         }
 
         img,
