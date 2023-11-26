@@ -1,0 +1,39 @@
+---
+import LoginForm from "../../components/loginForm.astro";
+import LoginBackground from "../../layouts/loginBackground.astro";
+
+
+if (Astro.request.method === "POST") {
+	const data = await Astro.request.formData()
+	const finalForm = Object.fromEntries(data.entries());
+	const reqResponse = await fetch("http://0.0.0.0:6700/api/init-login", {
+		method: "POST",
+		body: JSON.stringify(finalForm),
+		headers: {
+			"Content-Type": "application/json",
+		},
+	})
+	const res = await reqResponse.json()
+	if (res.error === undefined) {
+		return Astro.redirect("/entry/login")		
+	} else {
+		console.log(res.error)
+		return new Response(JSON.stringify(res), {
+		headers: {
+			"Content-Type": "application/json",
+		},
+	})
+	}
+}
+
+---
+
+<html lang="en">
+	<head>
+	</head>
+	<body>
+		<LoginBackground>
+			<LoginForm Heading="Init Login" Action="init-login">
+		</LoginBackground>
+	</body>
+</html>

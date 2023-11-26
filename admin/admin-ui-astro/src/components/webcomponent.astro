@@ -1,0 +1,41 @@
+---
+export interface Props {
+    html: string;
+}
+const {
+    html
+} = Astro.props;
+import { Window } from 'happy-dom';
+const SSRWindow = new Window();
+const SSRDocument = SSRWindow.document;
+class Test extends SSRWindow.HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this.shadowRoot!.innerHTML = `<slot>
+        ${html}
+        </slot>
+        <style>
+        :host {
+            display: block;
+            border: 1px solid black;
+            padding: 10px;
+        }
+        </style>
+        <script>
+        
+        </script>
+        `;
+  }
+}
+
+
+
+SSRWindow.customElements.define('web-component', Test);
+SSRDocument.body.innerHTML = '<web-component>Test</web-component>';
+const slot = SSRDocument.body.getInnerHTML({ includeShadowRoots: true });
+SSRWindow.happyDOM.cancelAsync();
+
+---
+
+<Fragment set:html={slot} />
