@@ -1,0 +1,131 @@
+---
+import StandardLayoutWithSidebar from "../../layouts/standardLayoutWithSidebar.astro";
+import Test  from "../../components/test.svelte";
+---
+
+<style>
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+  input {
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+  }
+  button {
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    cursor: pointer;
+  }
+  button:hover {
+    background-color: #a98484;
+  }
+</style>
+
+<Test client:load />
+
+<script>
+import { $statsStore } from "../../stores/stats";
+  import type { stats } from "../../stores/stats";
+  import Chart from "chart.js/auto";
+
+const ctx = document.createElement("canvas");
+
+
+  function addData(chart: Chart, label: any, data: any[]) {
+    if (data.length > 10) {
+        data.shift();
+      }
+    if (!chart || !label || !data) {
+      console.log("missing data");
+      return;
+    }
+    if (!chart.data.labels || !chart.data.datasets) {
+      console.log("missing from chart");
+      return;
+    }
+    chart.data.labels.push(label);
+    chart.data.datasets.forEach((dataset: any) => {
+      if (!dataset.data) {
+        console.log("missing data from dataset");
+        return;
+      }
+      if (dataset.data.length > 10) {
+        dataset.data.shift();
+      }
+      dataset.data.push(data);
+    });
+    if (chart.data.labels.length > 10) {
+      chart.data.labels.shift();
+    }
+
+    chart.update();
+  }
+
+  const testChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      datasets: [
+        {
+          label: "Memory",
+          data: [],
+        },
+      ],
+    },
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true,
+        },
+      },
+    },
+  });
+  document.getElementById("data")?.append(ctx);
+  const testVar: any[] = []
+
+  $statsStore.subscribe((stats: stats[]) => {
+    console.log(stats);
+    if (!stats) {
+      console.log("no stats");
+      return;
+    }
+    if (!stats.map) {
+      console.log("no memory");
+      return;
+    }
+    stats.map((stat) => {
+      if (!stat) {
+        console.log("no stat");
+        return;
+      }
+      if (!stat.memory || !stat.memory.map) {
+        console.log("no memory");
+        return;
+      }
+
+      stat.memory.map((memory) => {
+        if (memory.total) {
+          testVar.push(memory.total);
+        }
+      });
+    });
+  addData(testChart, new Date().toLocaleTimeString(), testVar);
+});
+
+
+
+
+
+</script>
+
+<StandardLayoutWithSidebar title="Dashboard">
+  <h1>Dashboard</h1>
+  <div id="data"></div>
+</StandardLayoutWithSidebar>
