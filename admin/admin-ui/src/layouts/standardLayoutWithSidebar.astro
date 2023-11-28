@@ -142,7 +142,7 @@ $pageDataStore,
             const tempContent = item.content as HTMLElement;
             if (!tempContent) return;
             document.querySelector("section#content")?.replaceWith(tempContent);
-            window.dispatchEvent(new CustomEvent("pagechange", { detail: item }));
+            window.dispatchEvent(new CustomEvent("pagechange", { detail: {item, path: item.path, }}));
           });
         });
       }
@@ -251,15 +251,8 @@ $pageDataStore,
         </aside>
       </section>
       <section id="content">
-        SEX
         <slot />
       </section>
     </main>
   </body>
 </html>
-
-<script>
-
-
-  
-</script>

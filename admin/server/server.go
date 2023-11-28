@@ -44,7 +44,7 @@ func MainServer(db *sql.DB) {
 	// 	authCheck(c, db)
 	// })
 
-	r.POST("/api/server-stats", func(c *gin.Context) {
+	r.GET("/api/server-stats", func(c *gin.Context) {
 		handleStats(c)
 	})
 	if os.Getenv("MODE") == "DEV" {
@@ -113,9 +113,6 @@ func MainServer(db *sql.DB) {
 			handler,
 		)
 		r.GET("/node_modules/*wildcard",
-			handler,
-		)
-		r.GET("/",
 			handler,
 		)
 

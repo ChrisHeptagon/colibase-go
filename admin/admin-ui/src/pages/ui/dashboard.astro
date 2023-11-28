@@ -29,12 +29,10 @@ import StandardLayoutWithSidebar from "../../layouts/standardLayoutWithSidebar.a
 </style>
 
 
-<!-- <script>
+<script>
 import { statsStore } from "../../stores/stats";
   import type { stats } from "../../stores/stats";
   import Chart from "chart.js/auto";
-
-const ctx = document.createElement("canvas");
 
 
   function addData(chart: Chart, label: any, data: any[]) {
@@ -67,63 +65,61 @@ const ctx = document.createElement("canvas");
     chart.update();
   }
 
-  const testChart = new Chart(ctx, {
-    type: "line",
-    data: {
-      datasets: [
-        {
-          label: "Memory",
-          data: [],
-        },
-      ],
-    },
-    options: {
-      scales: {
-        y: {
-          beginAtZero: true,
-        },
-      },
-    },
-  });
-  document.getElementById("data")?.append(ctx);
-  const testVar: any[] = []
 
-  statsStore.subscribe((stats: stats[]) => {
-    console.log(stats);
-    if (!stats) {
-      console.log("no stats");
-      return;
-    }
-    if (!stats.map) {
-      console.log("no memory");
-      return;
-    }
-    stats.map((stat) => {
-      if (!stat) {
-        console.log("no stat");
-        return;
-      }
-      if (!stat.memory || !stat.memory.map) {
-        console.log("no memory");
-        return;
-      }
+   
 
-      stat.memory.map((memory) => {
-        if (memory.total) {
-          testVar.push(memory.total);
+
+
+
+  class MemoryComponent extends HTMLElement {
+    testVar: any[] = []
+    fetchInterval: number
+    ctx: HTMLCanvasElement;
+    testChart: Chart
+    
+    constructor(){
+      super()
+      this.attachShadow({mode: "open"})
+      this.fetchInterval = 0
+      this.ctx = document.createElement("canvas")
+      this.ctx.setAttribute("id", "memtotal")
+      this.shadowRoot?.append(this.ctx)
+      this.testChart = new Chart(this.ctx, {
+        type: "line",
+        data: {
+          datasets: 
+              [{
+                label: "Memory: Total",
+                data: [...this.testVar,],
+              }]
         }
-      });
-    });
-  addData(testChart, new Date().toLocaleTimeString(), testVar);
-});
+      })
+    }
+    connectedCallback() {
+      console.log("Hello")
+      this.testChart.render()
+      this.fetchInterval = window.setInterval(async () => {
+        const res = await fetch("/api/server-stats")
+        const json = await res.json()
+        console.log(json.memory.total)
+        this.testVar.push(json.memory.total)
+        addData(this.testChart, new Date().toLocaleTimeString(), this.testVar);
+      }, 1000)
+    }
+    disconnectedCallback() {
+      this.testChart.destroy()
+      this.ctx.remove()
+      console.log("Disconnected")
+      window.clearInterval(this.fetchInterval)
+    }
+    
 
+  }
+  customElements.define("memory-component", MemoryComponent)
 
-
-
-
-</script> -->
+</script>
 
 <StandardLayoutWithSidebar title="Dashboard">
   <h1>Dashboard</h1>
-  <div id="data"></div>
+  <memory-component></memory-component>
 </StandardLayoutWithSidebar>
