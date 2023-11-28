@@ -5,4 +5,4 @@ export interface stats {
     cpu: Object[]
 }
 
-export const $statsStore = atom<stats[]>([]);
+export const statsStore = atom<stats[]>([]);

@@ -103,8 +103,8 @@ const elements = [
     { children.after && children.after.map((e) => {return <Astro.self {...{...defaults, ...e}} />})}
     {innerHTML && <Fragment set:html={innerHTML}/>}
     { scss && <Fragment set:html={`<style>${trueScss}</style>`}/>}
-    { script && <Fragment set:html={`<script>${script}</script>`}/>}
-    { typescript && <Fragment set:html={`<script type="module">${newScript}</script>`}/>}
+    { script && <Fragment set:html={`<script>${script};</script>`}/>}
+    { typescript && <Fragment set:html={`<script type="module">${newScript};</script>`}/>}
     { children.last && children.last.map((e) => {return <Astro.self {...{...defaults, ...e}} />})}
     <slot name="last"/>
 </Tag>

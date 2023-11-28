@@ -2,20 +2,22 @@ import { defineConfig } from 'astro/config';
 import node from '@astrojs/node';
 import react from "@astrojs/react";
 
-import svelte from "@astrojs/svelte";
 
 // https://astro.build/config
 export default defineConfig({
   output: "server",
   vite: {
-    ssr: {
-      external: ['node:http']
-    }
+    server: {
+      hmr: {
+        host: "localhost",
+        port: 8900
+      }
+    },
   },
   adapter: node({
     mode: "standalone"
   }),
   integrations: [react({
     experimentalReactChildren: true
-  }), svelte()]
+  })]
 });

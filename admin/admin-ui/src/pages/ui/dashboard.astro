@@ -1,6 +1,5 @@
 ---
 import StandardLayoutWithSidebar from "../../layouts/standardLayoutWithSidebar.astro";
-import Test  from "../../components/test.svelte";
 ---
 
 <style>
@@ -29,10 +28,9 @@ import Test  from "../../components/test.svelte";
   }
 </style>
 
-<Test client:load />
 
-<script>
-import { $statsStore } from "../../stores/stats";
+<!-- <script>
+import { statsStore } from "../../stores/stats";
   import type { stats } from "../../stores/stats";
   import Chart from "chart.js/auto";
 
@@ -90,7 +88,7 @@ const ctx = document.createElement("canvas");
   document.getElementById("data")?.append(ctx);
   const testVar: any[] = []
 
-  $statsStore.subscribe((stats: stats[]) => {
+  statsStore.subscribe((stats: stats[]) => {
     console.log(stats);
     if (!stats) {
       console.log("no stats");
@@ -123,7 +121,7 @@ const ctx = document.createElement("canvas");
 
 
 
-</script>
+</script> -->
 
 <StandardLayoutWithSidebar title="Dashboard">
   <h1>Dashboard</h1>
