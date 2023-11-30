@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"sort"
 	"time"
 
@@ -17,42 +18,36 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
 func MainServer(db *sql.DB) {
-	r := gin.Default()
-
-	// r.POST("/api/login", func(c *gin.Context) {
-	// 	handleUserLogin(c, db)
-	// })
+	r := gin.New()
+	r.SetTrustedProxies(nil)
+	r.POST("/api/login", func(c *gin.Context) {
+		handleUserLogin(c, db)
+	})
 	r.GET("/api/login-schema", func(c *gin.Context) {
 		loginSchema(db, c)
 	})
-	// r.GET("/api/user-initialization-status", func(c *gin.Context) {
-	// 	handleUserInitializatonStatus(c, db, "users")
-	// })
-	// r.POST("/api/init-login", func(c *gin.Context) {
-	// 	handleUserInitializaton(c, db)
-	// })
-
-	// r.POST("/api/logout", func(c *gin.Context) {
-	// 	handleUserLogout(c, db)
-	// })
-
-	// r.POST("/api/auth-check", func(c *gin.Context) {
-	// 	authCheck(c, db)
-	// })
+	r.POST("/api/init-login", func(c *gin.Context) {
+		handleUserInitializaton(c, db)
+	})
+	r.POST("/api/logout", func(c *gin.Context) {
+		handleUserLogout(c, db)
+	})
 
 	r.GET("/api/server-stats", func(c *gin.Context) {
 		handleStats(c)
 	})
+	var handler gin.HandlerFunc
 	if os.Getenv("MODE") == "DEV" {
 		devServer, err := url.Parse(fmt.Sprintf("http://localhost:%s", os.Getenv("DEV_PORT")))
 		if err != nil {
 			fmt.Println("Error parsing dev server URL: ", err)
 		}
-		handler := func(c *gin.Context) {
+		handler = func(c *gin.Context) {
 			(*c).Request.Host = devServer.Host
 			(*c).Request.URL.Host = devServer.Host
 			(*c).Request.URL.Scheme = devServer.Scheme
@@ -86,6 +81,7 @@ func MainServer(db *sql.DB) {
 					}
 				}
 			}
+
 			devServerResponse, err := http.DefaultClient.Do((*c).Request)
 			if err != nil {
 				fmt.Println("Error sending request to dev server: ", err)
@@ -97,12 +93,6 @@ func MainServer(db *sql.DB) {
 			(*c).Writer.Header().Set("Content-Type", devServerResponse.Header.Get("Content-Type"))
 			io.Copy((*c).Writer, devServerResponse.Body)
 		}
-		r.GET("/entry/*wildcard",
-			handler,
-		)
-		r.GET("/ui/*wildcard",
-			handler,
-		)
 		r.GET("/src/*wildcard",
 			handler,
 		)
@@ -125,7 +115,7 @@ func MainServer(db *sql.DB) {
 		if err != nil {
 			fmt.Println("Error parsing node server URL: ", err)
 		}
-		handler := gin.HandlerFunc(func(c *gin.Context) {
+		handler = gin.HandlerFunc(func(c *gin.Context) {
 			c.Request.Host = nodeServer.Host
 			c.Request.URL.Host = nodeServer.Host
 			c.Request.URL.Scheme = nodeServer.Scheme
@@ -143,19 +133,31 @@ func MainServer(db *sql.DB) {
 			io.Copy(c.Writer, nodeServerResponse.Body)
 
 		})
-		r.GET("/ui/*wildcard",
-			handler,
-		)
-		r.GET("/entry/*wildcard",
-			handler,
-		)
 		r.GET("/_astro/*wildcard",
 			handler,
 		)
 	}
-
+	entry := r.Group("/entry")
+	entry.POST("/login",
+		gin.HandlerFunc(func(c *gin.Context) {
+			handleUserLogin(c, db)
+		}),
+	)
+	entry.GET("/login",
+		gin.HandlerFunc(func(c *gin.Context) {
+			handler(c)
+		}),
+	)
+	entry.GET("/logout",
+		gin.HandlerFunc(func(c *gin.Context) {
+			handleUserLogout(c, db)
+		}),
+	)
+	r.GET("/ui/*wildcard",
+		handler,
+	)
+	fmt.Println("Server running at http://localhost:6701")
 	r.Run(":6701")
-	fmt.Println("Server running at http://localhost:6700")
 }
 
 func handleStats(c *gin.Context) {
@@ -164,281 +166,242 @@ func handleStats(c *gin.Context) {
 		c.Writer.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(c.Writer, "Error getting stats: %v", err)
 	}
-	c.PureJSON(http.StatusOK, stats)
+	c.JSON(http.StatusOK, stats)
 }
 
-// func handleUserLogout(c *gin.Context, db *sql.DB) {
-// 	var cookieMap map[string]interface{}
-// 	err := c.Request.Body
-// 	if err != nil {
-// 		c.Writer.WriteHeader(http.StatusInternalServerError)
-// 		fmt.Fprintf(c.Writer, "Error parsing cookie: %v", err)
-// 	}
-// 	fmt.Println("Logout Cookie: ", cookieMap)
-// 	err = models.DeleteCookie(db, "sessions", cookieMap["cookie"].(map[string]interface{})["value"].(string))
-// 	if err != nil {
-// 		c.Writer.WriteHeader(http.StatusInternalServerError)
-// 		fmt.Fprintf(c.Writer, "Error deleting cookie: %v", err)
-// 	}
+func handleUserLogout(c *gin.Context, db *sql.DB) {
+	err := c.Request.ParseForm()
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(c.Writer, "Error parsing cookie: %v", err)
+		return
+	}
+	cookieValue := c.Request.Form.Get("cookie")
+	err = models.DeleteCookie(db, "sessions", cookieValue)
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(c.Writer, "Error deleting cookie: %v", err)
+		return
+	}
+	c.Writer.WriteHeader(http.StatusOK)
+	fmt.Fprintf(c.Writer, "Cookie deleted")
+}
 
-// 	return c.JSON(
-// 		map[string]interface{}{
-// 			"message": "Logged Out",
-// 			"status":  http.StatusOK,
-// 		},
-// 	)
-// }
+func handleUserLogin(c *gin.Context, db *sql.DB) {
+	c.Request.ParseMultipartForm(2048)
+	formData := make(map[string]string)
+	var cookieValue string
+	for key, value := range c.Request.Form {
+		formData[key] = value[0]
+	}
+	var formErrors []string
+	schema, err := models.GenAdminSchema(db, "admin_schema")
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(c.Writer, "Error generating schema: %v", err)
+		return
+	}
+	for key, value := range formData {
+		switch value {
+		case "":
+			c.Writer.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(c.Writer, "empty field(s)")
+			return
+		}
+		if schema[key] == nil {
+			defer delete(formData, key)
+			c.Writer.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(c.Writer, "Invalid Field: %s", key)
+			return
+		}
+		if schema[key] != nil {
+			if schema[key]["required"] == "true" {
+				if value == "" {
+					formErrors = append(formErrors, fmt.Sprintf("Empty Field: %s", key))
+				}
+			}
+			if schema[key]["pattern"] != "" {
+				if !regexp.MustCompile(schema[key]["pattern"]).MatchString(value) {
+					formErrors = append(formErrors, fmt.Sprintf("Invalid %s", key))
+				}
+			}
+		}
 
-// func authCheck(c *gin.Context, db *sql.DB) {
-// 	var cookieMap map[string]interface{}
-// 	err := c.BodyParser(&cookieMap)
-// 	if err != nil {
-// 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-// 			"error": "unauthorized",
-// 		})
-// 	}
-// 	fmt.Println(cookieMap)
+	}
+	if len(formErrors) > 0 {
+		for key, value := range formErrors {
+			c.Writer.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(c.Writer, "Error #%d: %s\n", key+1, value)
+			return
+		}
+		c.Writer.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(c.Writer, "Error(s) in form, \nplease check your form and try again")
+		return
+	}
 
-// 	err = models.CheckCookie(db, "sessions", cookieMap["cookie"].(map[string]interface{})["value"].(string))
-// 	if err != nil {
-// 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 			"error": err.Error(),
-// 		})
-// 	}
+	structFormData, err := models.MapToStruct(formData)
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		c.Writer.WriteString(fmt.Sprintf("Error mapping form to struct: %v", err))
+		return
+	}
+	rows, err := models.QueryAdminUserDB(db, "users", structFormData)
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		c.Writer.WriteString(fmt.Sprintf("Error querying database: %v", err))
+		return
+	}
+	userDeets := make(map[string]interface{})
 
-// 	return c.JSON(
-// 		fiber.Map{
-// 			"message": "Authorized",
-// 			"value":   cookieMap["cookie"].(map[string]interface{})["value"].(string),
-// 			"status":  fiber.StatusOK,
-// 		},
-// 	)
-// }
+	defer rows.Close()
+	column, err := rows.Columns()
+	columnsInterface := make([]interface{}, len(column))
+	for rows.Next() {
+		if err != nil {
+			c.Writer.WriteHeader(http.StatusInternalServerError)
+			c.Writer.WriteString(fmt.Sprintf("Error getting columns: %v", err))
+		}
 
-// func handleUserLogin(c *gin.Context, db *sql.DB) {
-// 	var formData map[string]string
-// 	var cookieValue string
-// 	if err := c.BodyParser(&formData); err != nil {
-// 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-// 			"error": err.Error(),
-// 		})
-// 	}
-// 	var formErrors []string
-// 	schema, err := models.GenAdminSchema(db, "admin_schema")
-// 	fmt.Println("Login Schema: ", schema["Password"]["pattern"])
-// 	if err != nil {
-// 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 			"error": err.Error(),
-// 		})
-// 	}
-// 	for key, value := range formData {
-// 		switch value {
-// 		case "":
-// 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-// 				"error": "empty field(s)",
-// 			})
-// 		}
-// 		if schema[key] == nil {
-// 			defer delete(formData, key)
-// 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-// 				"error": fmt.Sprintf("Invalid Field: %s", key),
-// 			})
-// 		}
-// 		if schema[key] != nil {
-// 			if schema[key]["required"] == "true" {
-// 				if value == "" {
-// 					formErrors = append(formErrors, fmt.Sprintf("Empty Field: %s", key))
-// 				}
-// 			}
-// 			if schema[key]["pattern"] != "" {
-// 				if !regexp.MustCompile(schema[key]["pattern"]).MatchString(value) {
-// 					formErrors = append(formErrors, fmt.Sprintf("Invalid %s", key))
-// 				}
-// 			}
-// 		}
+		for i := range column {
+			columnsInterface[i] = &columnsInterface[i]
+		}
+		err = rows.Scan(columnsInterface...)
+		if err != nil {
+			c.Writer.WriteHeader(http.StatusInternalServerError)
+			c.Writer.WriteString(fmt.Sprintf("Error scanning columns: %v", err))
+			return
+		}
+		for i := range column {
+			userDeets[column[i]] = columnsInterface[i]
+		}
+	}
+	if len(userDeets) == 0 {
+		c.Writer.WriteHeader(http.StatusUnauthorized)
+		c.Writer.WriteString("Invalid Credentials")
+		return
+	}
+	fmt.Println(userDeets)
+	fmt.Println(formData)
+	for key, value := range userDeets {
+		if regexp.MustCompile(`(?i)password`).FindString(key) != "" {
+			if utils.CheckPassword(formData[key], value.(string)) == nil {
+				continue
+			} else if utils.CheckPassword(formData[key], value.(string)) != nil {
+				fmt.Println("Password:", formData[key])
+				fmt.Println("Hashed Password:", value.(string))
+				c.Writer.WriteHeader(http.StatusUnauthorized)
+				c.Writer.WriteString("Invalid Credentials")
+				return
+			}
+		} else if regexp.MustCompile(`(?i)id`).FindString(key) != "" {
+			continue
+		} else {
+			if value != formData[key] {
+				c.Writer.WriteHeader(http.StatusUnauthorized)
+				c.Writer.WriteString("Invalid Credentials")
+				return
+			}
+		}
+	}
 
-// 	}
-// 	if len(formErrors) > 0 {
-// 		for key, value := range formErrors {
-// 			fmt.Printf("Error #%d: %s\n", key+1, value)
-// 		}
-// 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-// 			"error": "Error(s) in form, \nplease check your form and try again",
-// 		})
-// 	}
+	// Convert Form Data to String
+	cookieValue = string(uuid.New().String())
+	resMap := map[string]interface{}{
+		"message": "User Logged In",
+		"value":   cookieValue,
+	}
+	rawJson, err := json.Marshal(resMap)
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		c.Writer.WriteString(fmt.Sprintf("Error marshaling response: %v", err))
+		return
+	}
+	c.SetCookie("session", cookieValue, 3600, "/", c.Request.URL.Hostname(), false, true)
+	c.Writer.WriteHeader(http.StatusOK)
+	c.Redirect(http.StatusFound, "/ui/dashboard")
+	c.Writer.Write(rawJson)
+}
 
-// 	structFormData, err := models.MapToStruct(formData)
-// 	if err != nil {
-// 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 			"error": err.Error(),
-// 		})
-// 	}
-// 	rows, err := models.QueryAdminUserDB(db, "users", structFormData)
-// 	if err != nil {
-// 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 			"error": err.Error(),
-// 		})
-// 	}
-// 	userDeets := make(map[string]interface{})
+func handleUserInitializaton(c *gin.Context, db *sql.DB) {
+	var formData map[string]string
+	var cookieValue string
+	if err := c.Request.ParseForm(); err != nil {
+		fmt.Println("Error parsing form: ", err)
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(c.Writer, "Error parsing form: %v", err)
+	}
+	var formErrors []string
+	schema, err := models.GenAdminSchema(db, "admin_schema")
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(c.Writer, "Error generating schema: %v", err)
+	}
+	for key, value := range formData {
+		if value == "" {
+			c.Writer.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(c.Writer, "empty field(s)")
+			return
+		}
+		if schema[key] == nil {
+			delete(formData, key)
 
-// 	defer rows.Close()
-// 	column, err := rows.Columns()
-// 	columnsInterface := make([]interface{}, len(column))
-// 	for rows.Next() {
-// 		if err != nil {
-// 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 				"error": err.Error(),
-// 			})
-// 		}
+		}
+		if schema[key] != nil {
+			if schema[key]["required"] == "true" {
+				if value == "" {
+					formErrors = append(formErrors, fmt.Sprintf("Empty Field: %s", key))
+				}
+			}
+			if schema[key]["pattern"] != "" {
+				if !regexp.MustCompile(schema[key]["pattern"]).MatchString(value) {
+					formData = map[string]string{
+						"failure": "true",
+					}
+					formErrors = append(formErrors, fmt.Sprintf("Invalid %s\n", key))
+				}
+			}
+			if regexp.MustCompile(`(?i)password`).FindString(key) != "" {
+				hashedPass, err := utils.HashPassword(value)
+				if err != nil {
+					c.Writer.WriteHeader(http.StatusInternalServerError)
+					c.Writer.WriteString(fmt.Sprintf("Error hashing password: %v", err))
+				}
+				formData[key] = hashedPass
+			}
+		}
+	}
+	if len(formErrors) > 0 || formData["failure"] == "true" {
+		for key, value := range formErrors {
+			fmt.Printf("Error #%d: %s\n", key+1, value)
+		}
+		c.Writer.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(c.Writer, "Error(s) in form, \nplease check your form and try again")
+		return
+	}
+	structFormData, err := models.MapToStruct(formData)
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		c.Writer.WriteString(fmt.Sprintf("Error mapping form to struct: %v", err))
+	}
+	err = models.GenerateAdminTable(db, "users", structFormData)
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		c.Writer.WriteString(fmt.Sprintf("Error generating admin table: %v", err))
+	}
+	err = models.InsertDataFromStruct(db, "users", structFormData)
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		c.Writer.WriteString(fmt.Sprintf("Error inserting data into table: %v", err))
+	}
 
-// 		for i := range column {
-// 			columnsInterface[i] = &columnsInterface[i]
-// 		}
-// 		err = rows.Scan(columnsInterface...)
-// 		if err != nil {
-// 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 				"error": err.Error(),
-// 			})
-// 		}
-// 		for i := range column {
-// 			userDeets[column[i]] = columnsInterface[i]
-// 		}
-// 	}
-// 	if len(userDeets) == 0 {
-// 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-// 			"error": "invalid credentials",
-// 		})
-// 	}
-// 	fmt.Println(userDeets)
-// 	fmt.Println(formData)
-// 	for key, value := range userDeets {
-// 		if regexp.MustCompile(`(?i)password`).FindString(key) != "" {
-// 			if utils.CheckPassword(formData[key], value.(string)) == nil {
-// 				continue
-// 			} else if utils.CheckPassword(formData[key], value.(string)) != nil {
-// 				fmt.Println("Password:", formData[key])
-// 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-// 					"error": "invalid credentials",
-// 				})
-// 			}
-// 		} else if regexp.MustCompile(`(?i)id`).FindString(key) != "" {
-// 			continue
-// 		} else {
-// 			if value != formData[key] {
-// 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-// 					"error": "invalid credentials",
-// 				})
-// 			}
-// 		}
-// 	}
-
-// 	// Convert Form Data to String
-// 	cookieValue = string(uuid.New().String())
-
-// 	return c.JSON(
-// 		fiber.Map{
-// 			"message": "Login Successful",
-// 			"value":   cookieValue,
-// 			"status":  fiber.StatusOK,
-// 		},
-// 	)
-// }
-
-// func handleUserInitializaton(c *gin.Context, db *sql.DB) {
-// 	var formData map[string]string
-// 	var cookieValue string
-// 	if err := c.BodyParser(&formData); err != nil {
-// 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-// 			"error": err.Error(),
-// 		})
-// 	}
-// 	var formErrors []string
-// 	schema, err := models.GenAdminSchema(db, "admin_schema")
-// 	if err != nil {
-// 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 			"error": err.Error(),
-// 		})
-// 	}
-// 	for key, value := range formData {
-// 		if value == "" {
-// 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-// 				"error": "empty field(s)",
-// 			})
-// 		}
-// 		if schema[key] == nil {
-// 			delete(formData, key)
-// 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-// 				"error": fmt.Sprintf("Invalid Field: %s", key),
-// 			})
-// 		}
-// 		if schema[key] != nil {
-// 			if schema[key]["required"] == "true" {
-// 				if value == "" {
-// 					formErrors = append(formErrors, fmt.Sprintf("Empty Field: %s", key))
-// 				}
-// 			}
-// 			if schema[key]["pattern"] != "" {
-// 				if !regexp.MustCompile(schema[key]["pattern"]).MatchString(value) {
-// 					formData = map[string]string{
-// 						"failure": "true",
-// 					}
-// 					formErrors = append(formErrors, fmt.Sprintf("Invalid %s\n", key))
-// 				}
-// 			}
-// 			if regexp.MustCompile(`(?i)password`).FindString(key) != "" {
-// 				hashedPass, err := utils.HashPassword(value)
-// 				if err != nil {
-// 					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 						"error": err.Error(),
-// 					})
-// 				}
-// 				formData[key] = hashedPass
-// 			}
-// 		}
-// 	}
-// 	if len(formErrors) > 0 || formData["failure"] == "true" {
-// 		for key, value := range formErrors {
-// 			fmt.Printf("Error #%d: %s\n", key+1, value)
-// 		}
-// 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-// 			"error": "Error(s) in form, \nplease check your form and try again",
-// 		})
-// 	}
-// 	structFormData, err := models.MapToStruct(formData)
-// 	if err != nil {
-// 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 			"error": err.Error(),
-// 		})
-// 	}
-// 	err = models.GenerateAdminTable(db, "users", structFormData)
-// 	if err != nil {
-// 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 			"error": err.Error(),
-// 		})
-// 	}
-// 	err = models.InsertDataFromStruct(db, "users", structFormData)
-// 	if err != nil {
-// 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-// 			"error": err.Error(),
-// 		})
-// 	}
-
-// 	return c.JSON(
-// 		fiber.Map{
-// 			"message": "User Initialized",
-// 			"value":   cookieValue,
-// 			"status":  fiber.StatusOK,
-// 		},
-// 	)
-// }
-
-// func handleUserInitializatonStatus(c *gin.Context, db *sql.DB, tn string) {
-// 	if models.IsUserInitialized(db) {
-// 		return c.SendStatus(fiber.StatusOK)
-// 	} else {
-// 		return c.SendStatus(fiber.StatusInternalServerError)
-// 	}
-// }
+	c.PureJSON(
+		http.StatusOK,
+		map[string]interface{}{
+			"message": "User Initialized",
+			"value":   cookieValue,
+		},
+	)
+}
 
 func loginSchema(db *sql.DB, c *gin.Context) {
 	schema, err := models.GenAdminSchema(db, "admin_schema")
@@ -473,7 +436,6 @@ func loginSchema(db *sql.DB, c *gin.Context) {
 		fmt.Println(string(jsonTest))
 
 		c.Writer.WriteHeader(http.StatusOK)
-		fmt.Print("Schema: ", jsonTest)
 		c.Writer.Write(jsonTest)
 	}
 }

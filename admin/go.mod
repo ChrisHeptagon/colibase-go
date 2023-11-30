@@ -36,6 +36,7 @@ require (
 )
 
 require (
+	github.com/google/uuid v1.4.0
 	github.com/gorilla/websocket v1.5.1
 	github.com/mackerelio/go-osstat v0.2.4
 	github.com/mattn/go-isatty v0.0.20 // indirect
